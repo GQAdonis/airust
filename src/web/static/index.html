@@ -1,0 +1,1351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AIRust</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+
+:root{
+  --sp-1:1px;--sp-2:2px;--sp-3:3px;--sp-5:5px;--sp-8:10px;--sp-13:16px;--sp-21:24px;--sp-34:40px;
+  --bg:#1a1b2e;--surface:#242640;--surface2:#2d2f4e;
+  --primary:#ffe7d6;--primary-hover:#ffd9c0;--primary-soft:rgba(255,231,214,0.10);
+  --text:#e4e4f0;--text2:#9496b5;--text3:#6b6d8a;
+  --danger:#e05566;--success:#44d7a8;--border:#3a3c5e;
+  --btn-text:#1a1b2e;--font-size:13px;
+  --glass:rgba(255,255,255,0.04);--glass-border:rgba(255,255,255,0.08);--glass-hover:rgba(255,255,255,0.07);--blur:blur(12px);
+  --r-1:1px;--r-2:2px;--r-3:3px;--r-4:4px;--r-5:5px;
+  --chat-user:#3a3c6e;--chat-bot:#2a2c4e;
+}
+[data-theme="light"]{
+  --bg:#f5f0ed;--surface:#ffffff;--surface2:#ece7e3;
+  --primary:#2d2020;--primary-hover:#1a1212;--primary-soft:rgba(45,32,32,0.08);
+  --text:#1a1b2e;--text2:#6b6d8a;--text3:#9496b5;
+  --border:#d8d0cc;--btn-text:#ffffff;
+  --glass:rgba(0,0,0,0.03);--glass-border:rgba(0,0,0,0.06);--glass-hover:rgba(0,0,0,0.05);
+  --chat-user:#e0e2f5;--chat-bot:#f0f1f8;
+}
+
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);height:auto;overflow-x:hidden;overflow-y:auto;font-size:13px}
+.layout{display:grid;grid-template-columns:240px 1fr;grid-template-rows:1fr auto;height:100vh}
+
+/* Sidebar - glass */
+.sidebar{background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border-right:1px solid var(--glass-border);display:flex;flex-direction:column;overflow:hidden}
+.sidebar-header{padding:var(--sp-13) var(--sp-13);border-bottom:1px solid var(--glass-border);display:flex;align-items:center;gap:var(--sp-8)}
+.sidebar-header .logo{font-weight:700;font-size:15px;color:var(--primary)}
+.sidebar-header .version{font-size:10px;color:var(--text3)}
+.sidebar-nav{padding:var(--sp-8) var(--sp-8)}
+.nav-item{display:flex;align-items:center;gap:var(--sp-8);padding:12px 16px;border-radius:var(--r-3);cursor:pointer;font-size:14px;font-weight:500;color:var(--text2);transition:background 150ms ease,opacity 150ms ease;margin-bottom:var(--sp-3)}
+.nav-item:hover{background:var(--glass-hover);color:var(--text)}
+.nav-item.active{background:var(--primary-soft);color:var(--primary);font-weight:600}
+.nav-sep{height:1px;background:var(--glass-border);margin:var(--sp-8) var(--sp-13)}
+.sidebar-chats{flex:1;overflow-y:auto;padding:0 var(--sp-5);display:none}
+.sidebar-chats.visible{display:block}
+.sidebar-chats-header{padding:var(--sp-5) var(--sp-8);font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px}
+.new-chat-btn{margin:var(--sp-5) var(--sp-8);padding:10px 16px;background:var(--primary);color:var(--btn-text);border:none;border-radius:var(--r-3);font-size:14px;font-weight:600;cursor:pointer;transition:background 120ms ease;text-align:center}
+.new-chat-btn:hover{background:var(--primary-hover)}
+.chat-list{flex:1;overflow-y:auto;padding:0 var(--sp-3)}
+.chat-item{display:flex;align-items:center;padding:8px 12px;border-radius:var(--r-3);cursor:pointer;margin-bottom:var(--sp-2);transition:background 150ms ease;gap:var(--sp-5);position:relative}
+.chat-item:hover{background:var(--glass-hover)}
+.chat-item.active{background:var(--primary-soft);border:1px solid var(--primary)}
+.chat-item .chat-title{flex:1;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-item .chat-actions{display:none;gap:var(--sp-2);flex-shrink:0}
+.chat-item:hover .chat-actions{display:flex}
+.chat-action-btn{background:none;border:none;color:var(--text2);cursor:pointer;font-size:11px;padding:var(--sp-1) var(--sp-3);border-radius:var(--r-2);line-height:1}
+.chat-action-btn:hover{background:var(--surface);color:var(--text)}
+.chat-action-btn.danger:hover{color:var(--danger)}
+.archive-toggle{padding:var(--sp-5) var(--sp-8);font-size:10px;color:var(--text3);cursor:pointer;border-top:1px solid var(--glass-border);text-align:center}
+.archive-toggle:hover{color:var(--primary)}
+.chat-item.archived .chat-title{color:var(--text3);font-style:italic}
+
+/* Main Content */
+.main-content{display:flex;flex-direction:column;overflow:hidden;font-size:var(--font-size)}
+
+/* Status Bar - glass */
+.status-bar{background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border-bottom:1px solid var(--glass-border);padding:8px 24px;font-size:13px;color:var(--text2);display:flex;align-items:center;gap:var(--sp-13);flex-shrink:0}
+.status-bar .status-dot{width:6px;height:6px;border-radius:50%;background:var(--success);box-shadow:0 0 4px var(--success)}
+.status-bar .sep{color:var(--text3)}
+.status-bar .lvl{font-weight:600;font-size:11px}
+.status-bar .lvl.info{color:var(--success)}
+
+/* View container */
+.view{display:none;flex:1;flex-direction:column;overflow:hidden}
+.view.active{display:flex}
+
+/* Sub-tabs (pill style) */
+.sub-tabs{display:flex;gap:var(--sp-3);padding:var(--sp-8) var(--sp-21);border-bottom:1px solid var(--border);flex-shrink:0}
+.sub-tab{padding:8px 20px;border-radius:var(--r-3);font-size:14px;font-weight:500;color:var(--text2);background:none;border:1px solid transparent;cursor:pointer;transition:all 120ms ease}
+.sub-tab:hover{background:var(--surface2);color:var(--text)}
+.sub-tab.active{background:var(--primary);color:var(--btn-text);border-color:var(--primary)}
+.sub-view{display:none;flex:1;flex-direction:column;overflow:hidden}
+.sub-view.active{display:flex}
+
+/* Chat View */
+.chat-panel{display:flex;flex-direction:column;flex:1;overflow:hidden}
+.messages{flex:1;overflow-y:auto;padding:var(--sp-21);display:flex;flex-direction:column;gap:var(--sp-13)}
+.messages-inner{max-width:700px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:var(--sp-13)}
+.msg{max-width:75%;padding:16px 24px;border-radius:var(--r-5);font-size:var(--font-size);line-height:1.6;word-wrap:break-word;animation:fadeIn 200ms ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.msg.user{align-self:flex-end;background:var(--primary);color:var(--btn-text);border-bottom-right-radius:var(--r-1)}
+.msg.bot{align-self:flex-start;background:var(--chat-bot);border-bottom-left-radius:var(--r-1)}
+.msg .confidence{font-size:11px;color:var(--text3);margin-top:var(--sp-5)}
+.msg.user .confidence{color:rgba(255,255,255,.6)}
+.empty-chat{flex:1;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:24px;text-align:center;padding:var(--sp-34)}
+.chat-input-area{padding:var(--sp-13) var(--sp-21);border-top:1px solid var(--border);display:flex;gap:var(--sp-8);max-width:740px;width:100%;margin:0 auto}
+.chat-input-area input{flex:1;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-3);color:var(--text);font-size:15px}
+.chat-input-area input:focus{outline:none;border-color:var(--primary)}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--sp-5);padding:8px 18px;border:none;border-radius:var(--r-3);font-size:14px;font-weight:500;cursor:pointer;transition:background 120ms ease,border-color 120ms ease,box-shadow 120ms ease;color:var(--btn-text)}
+.btn-sm{padding:6px 12px;font-size:13px}
+.btn-primary{background:var(--primary)}
+.btn-primary:hover{background:var(--primary-hover)}
+.btn-secondary{background:var(--glass);border:1px solid var(--glass-border);color:var(--text)}
+.btn-secondary:hover{background:var(--glass-hover)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-danger:hover{background:#c94455}
+.btn-ghost{background:none;border:none;color:var(--text2)}
+.btn-ghost:hover{color:var(--text);background:var(--surface2)}
+.btn-success{background:var(--success);color:var(--btn-text)}
+.btn-success:hover{opacity:.9}
+.btn-full{width:100%}
+.btn-row{display:flex;gap:var(--sp-5)}
+.btn-row .btn{flex:1}
+.send-btn{padding:12px 28px;background:var(--primary);color:var(--btn-text);border:none;border-radius:var(--r-3);font-size:15px;font-weight:600;cursor:pointer;transition:background 120ms ease}
+.send-btn:hover{background:var(--primary-hover)}
+
+/* Inputs */
+input[type=text],input[type=number],input[type=url]{width:100%;padding:10px 16px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r-3);color:var(--text);font-size:14px;margin-bottom:var(--sp-3);transition:border-color 120ms ease}
+input:focus{outline:none;border-color:var(--primary)}
+select{width:100%;padding:10px 16px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r-3);color:var(--text);font-size:14px;margin-bottom:var(--sp-3);cursor:pointer}
+select:focus{outline:none;border-color:var(--primary)}
+textarea{width:100%;padding:10px 16px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r-3);color:var(--text);font-size:14px;resize:vertical;min-height:60px}
+textarea:focus{outline:none;border-color:var(--primary)}
+
+/* Section */
+.section{padding:var(--sp-21);border-bottom:1px solid var(--border)}
+.section-title{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin-bottom:var(--sp-13);font-weight:600}
+
+/* Knowledge All - table */
+.kb-toolbar{display:flex;gap:var(--sp-8);padding:var(--sp-8) var(--sp-21);border-bottom:1px solid var(--border);align-items:center;flex-shrink:0;flex-wrap:wrap}
+.kb-toolbar input{flex:1;margin-bottom:0;min-width:120px}
+.t-table{width:100%;border-collapse:collapse;font-size:12px}
+.t-table th{text-align:left;padding:10px 12px;border-bottom:2px solid var(--border);color:var(--text2);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+.t-table td{padding:10px 12px;border-bottom:1px solid var(--border);max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.t-table tr:hover{background:var(--surface2)}
+.t-table .del-btn{background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px}
+.t-table .del-btn:hover{color:var(--danger)}
+.table-wrap{flex:1;overflow-y:auto;padding:var(--sp-8) var(--sp-21)}
+.kb-add-slide{display:none;padding:var(--sp-13) var(--sp-21);border-bottom:1px solid var(--border);animation:fadeIn 200ms ease-out}
+.kb-add-slide.open{display:block}
+.pager{display:flex;align-items:center;justify-content:center;gap:var(--sp-8);padding:var(--sp-8) var(--sp-21);border-top:1px solid var(--border);font-size:13px;flex-shrink:0}
+.pager button{background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:6px 14px;border-radius:var(--r-3);cursor:pointer;font-size:13px}
+.pager button:hover{border-color:var(--primary);color:var(--text)}
+.pager button:disabled{opacity:.3;cursor:default}
+
+/* Categories grid */
+.cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:var(--sp-13);padding:var(--sp-21)}
+.cat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-4);padding:18px;cursor:pointer;transition:border-color 150ms ease}
+.cat-card:hover{border-color:var(--primary)}
+.cat-card .cat-dot{width:10px;height:10px;border-radius:50%;margin-bottom:var(--sp-8)}
+.cat-card .cat-name{font-size:14px;font-weight:600;margin-bottom:var(--sp-3)}
+.cat-card .cat-count{font-size:11px;color:var(--text3)}
+.cat-card .cat-del-btn{background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;float:right}
+.cat-card .cat-del-btn:hover{color:var(--danger)}
+.cat-add-bar{padding:var(--sp-13) var(--sp-21);border-bottom:1px solid var(--border);display:flex;gap:var(--sp-8);align-items:center;flex-shrink:0}
+.cat-add-bar input{margin-bottom:0}
+
+/* Import */
+.import-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:var(--sp-21);padding:var(--sp-21)}
+.drop-zone{border:2px dashed var(--border);border-radius:var(--r-4);padding:32px;text-align:center;color:var(--text2);font-size:14px;cursor:pointer;transition:border-color 200ms ease,background 200ms ease}
+.drop-zone:hover,.drop-zone.dragover{border-color:var(--primary);background:var(--primary-soft)}
+.drop-zone input{display:none}
+.drop-zone .drop-title{font-size:14px;font-weight:600;margin-bottom:var(--sp-5)}
+.import-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-4);padding:var(--sp-21)}
+.import-section .import-title{font-size:15px;font-weight:600;margin-bottom:var(--sp-8)}
+.kb-path-bar{display:flex;gap:var(--sp-5);align-items:center;padding:var(--sp-8) var(--sp-13);border-top:1px solid var(--border)}
+.kb-path-bar input{flex:1;margin:0;padding:var(--sp-5) var(--sp-8);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-2);color:var(--text);font-size:11px}
+.kb-path-bar button{padding:var(--sp-5) var(--sp-13);font-size:11px;border:none;border-radius:var(--r-2);cursor:pointer;white-space:nowrap}
+.kb-path-bar button:first-of-type{background:var(--primary);color:#fff}
+.kb-path-bar button:last-of-type{background:var(--surface2);color:var(--text)}
+
+/* Guide */
+.guide-content{padding:var(--sp-21);overflow-y:auto;height:100%;line-height:1.7;color:var(--text)}
+.guide-content h1{font-size:1.6em;font-weight:700;margin:0 0 .8em;padding-bottom:.4em;border-bottom:2px solid var(--border)}
+.guide-content h2{font-size:1.3em;font-weight:600;margin:1.5em 0 .6em;padding-bottom:.3em;border-bottom:1px solid var(--border)}
+.guide-content h3{font-size:1.1em;font-weight:600;margin:1.2em 0 .4em}
+.guide-content p{margin:0 0 .8em}
+.guide-content pre{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-3);padding:var(--sp-13);overflow-x:auto;margin:0 0 1em;font-size:.9em}
+.guide-content code{background:var(--surface);padding:1px 5px;border-radius:var(--r-1);font-size:.9em}
+.guide-content pre code{background:none;padding:0}
+.guide-content table{width:100%;border-collapse:collapse;margin:0 0 1em;font-size:.9em}
+.guide-content th,.guide-content td{border:1px solid var(--border);padding:var(--sp-5) var(--sp-8);text-align:left}
+.guide-content th{background:var(--surface);font-weight:600}
+.guide-content ul,.guide-content ol{margin:0 0 .8em;padding-left:1.5em}
+.guide-content li{margin-bottom:.3em}
+.guide-content hr{border:none;border-top:1px solid var(--border);margin:1.5em 0}
+.guide-content strong{color:var(--primary)}
+.guide-content a{color:var(--primary);text-decoration:none}
+
+/* Agent cards (Settings) */
+.agent-option{display:flex;align-items:center;gap:var(--sp-8);padding:12px 16px;border-radius:var(--r-3);cursor:pointer;margin-bottom:var(--sp-5);transition:all 120ms ease;border:1px solid transparent}
+.agent-option:hover{background:var(--surface2)}
+.agent-option input[type=checkbox]{accent-color:var(--primary);margin:0}
+.agent-option.active{background:var(--primary-soft);border-color:var(--primary)}
+.agent-name{font-size:14px;font-weight:600}
+.agent-tech{font-size:13px;color:var(--text3);margin-top:var(--sp-1)}
+
+/* Settings */
+.setting-row{display:flex;align-items:center;justify-content:space-between;padding:var(--sp-8) 0;gap:var(--sp-13)}
+.setting-label{font-size:14px;font-weight:500}
+.theme-toggle{display:flex;gap:var(--sp-3);background:var(--bg);border-radius:var(--r-3);padding:var(--sp-2);border:1px solid var(--border)}
+.theme-btn{padding:8px 18px;border:none;border-radius:var(--r-2);font-size:14px;cursor:pointer;background:transparent;color:var(--text2);transition:all 120ms ease}
+.theme-btn.active{background:var(--primary);color:var(--btn-text)}
+input[type=color]{width:44px;height:36px;border:1px solid var(--border);border-radius:var(--r-3);cursor:pointer;padding:var(--sp-2);background:var(--bg)}
+input[type=range]{width:140px;accent-color:var(--primary)}
+.font-size-display{font-size:11px;color:var(--text2);min-width:24px;text-align:right}
+
+/* Bots */
+.bot-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-4);padding:18px;margin-bottom:var(--sp-8);transition:border-color 150ms ease}
+.bot-card:hover{border-color:var(--text3)}
+.bot-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-5)}
+.bot-card-name{font-size:14px;font-weight:600}
+.bot-card-type{font-size:11px;color:var(--text3)}
+.bot-status-led{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:var(--sp-5)}
+.bot-status-led.running{background:var(--success);box-shadow:0 0 4px var(--success);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.bot-status-led.stopped{background:var(--text3)}
+.bot-card-config{font-size:11px;color:var(--text3);margin-top:var(--sp-3);display:flex;flex-wrap:wrap;gap:var(--sp-5) var(--sp-13)}
+.bot-card-config span{display:inline-flex;align-items:center;gap:3px}
+.bot-card-config .cfg-label{color:var(--text3);font-weight:500}
+.bot-card-config .cfg-val{color:var(--text2)}
+.bot-card-actions{display:flex;gap:var(--sp-5);margin-top:var(--sp-8)}
+.bot-card-actions .btn{flex:1}
+.bot-form{display:none;padding:var(--sp-21);border-bottom:1px solid var(--border)}
+.bot-form.open{display:grid;gap:var(--sp-5);grid-template-columns:1fr 1fr}
+.bot-form label{font-size:11px;color:var(--text2);font-weight:500}
+.bot-form .full-width{grid-column:1/-1}
+.bot-form .btn-row{grid-column:1/-1}
+.bot-form .conditional-field{display:none}
+.bot-form .conditional-field.visible{display:block}
+.run-item{display:flex;align-items:center;gap:var(--sp-8);padding:var(--sp-8) var(--sp-5);border-bottom:1px solid var(--border);font-size:11px;cursor:pointer;transition:background 120ms ease;border-radius:var(--r-2)}
+.run-item:last-child{border-bottom:none}
+.run-item:hover{background:var(--surface2)}
+.run-item.active{background:var(--primary-soft);border:1px solid var(--primary)}
+.run-stats{display:flex;gap:var(--sp-8);align-items:center}
+.run-stats .stat{display:flex;align-items:center;gap:2px}
+.run-stats .stat-val{font-weight:600;color:var(--text)}
+.run-duration{font-size:10px;color:var(--text3)}
+.run-error{font-size:10px;color:var(--danger);margin-top:var(--sp-2)}
+.run-status{padding:var(--sp-2) var(--sp-5);border-radius:var(--r-2);font-size:10px;font-weight:600;text-transform:uppercase}
+.run-status.success{background:rgba(68,215,168,.15);color:var(--success)}
+.run-status.error{background:rgba(224,85,102,.15);color:var(--danger)}
+.run-status.running{background:rgba(255,231,214,.15);color:var(--primary)}
+.run-data-panel{padding:var(--sp-13) var(--sp-21);border-top:1px solid var(--border);animation:fadeIn 200ms ease}
+.run-data-panel .run-data-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-8)}
+.run-data-panel .run-data-header .section-title{margin-bottom:0}
+.run-data-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-3);padding:var(--sp-8) var(--sp-13);margin-bottom:var(--sp-5);font-size:12px}
+.run-data-item .rdi-url{font-size:11px;color:var(--primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:var(--sp-2)}
+.run-data-item .rdi-title{font-weight:600;margin-bottom:var(--sp-2)}
+.run-data-item .rdi-preview{color:var(--text2);max-height:40px;overflow:hidden;line-height:1.4}
+.run-data-item .rdi-meta{display:flex;align-items:center;justify-content:space-between;margin-top:var(--sp-3)}
+.run-data-item .rdi-badge{padding:1px 6px;border-radius:var(--r-2);font-size:9px;font-weight:600;text-transform:uppercase}
+.run-data-item .rdi-badge.pending{background:rgba(255,231,214,.15);color:var(--primary)}
+.run-data-item .rdi-badge.approved{background:rgba(68,215,168,.15);color:var(--success)}
+.run-data-item .rdi-badge.rejected{background:rgba(224,85,102,.15);color:var(--danger)}
+
+/* Data Review */
+.data-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-4);padding:18px;margin-bottom:var(--sp-8)}
+.data-card-url{font-size:11px;color:var(--primary);margin-bottom:var(--sp-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.data-card-title{font-size:14px;font-weight:600;margin-bottom:var(--sp-3)}
+.data-card-preview{font-size:13px;color:var(--text2);max-height:60px;overflow:hidden;margin-bottom:var(--sp-8);line-height:1.4}
+.data-card-actions{display:flex;gap:var(--sp-5)}
+.data-card-actions .btn{flex:1}
+.review-approved{display:none;padding:var(--sp-21)}
+.review-approved.open{display:block}
+.approved-toggle{padding:var(--sp-8) var(--sp-21);font-size:11px;color:var(--text2);cursor:pointer;border-top:1px solid var(--border)}
+.approved-toggle:hover{color:var(--primary)}
+
+/* Files */
+.files-layout{display:grid;grid-template-columns:1fr 1fr;flex:1;overflow:hidden}
+.files-browser{display:flex;flex-direction:column;overflow:hidden;border-right:1px solid var(--border)}
+.files-editor{display:flex;flex-direction:column;overflow:hidden}
+.files-path-bar{display:flex;gap:var(--sp-5);padding:var(--sp-8) var(--sp-13);border-bottom:1px solid var(--border);align-items:center}
+.files-path-bar input{flex:1;margin-bottom:0}
+.file-list{flex:1;overflow-y:auto;padding:var(--sp-3) var(--sp-8)}
+.file-item{display:flex;align-items:center;gap:var(--sp-8);padding:8px 12px;border-radius:var(--r-3);cursor:pointer;font-size:14px;transition:background 120ms ease}
+.file-item:hover{background:var(--surface2)}
+.file-item.active{background:var(--primary-soft)}
+.file-item.disabled{opacity:.4;cursor:default;pointer-events:none}
+.file-icon{font-size:13px;flex-shrink:0;width:18px;text-align:center}
+.file-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-size{color:var(--text3);font-size:10px;flex-shrink:0}
+.file-date{color:var(--text3);font-size:10px;flex-shrink:0;width:80px;text-align:right}
+.file-actions{display:none;gap:var(--sp-2);flex-shrink:0}
+.file-item:hover:not(.disabled) .file-actions{display:flex}
+.file-act-btn{background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px;padding:var(--sp-1) var(--sp-3)}
+.file-act-btn:hover{color:var(--danger)}
+.editor-header{display:flex;align-items:center;gap:var(--sp-8);padding:var(--sp-8) var(--sp-13);border-bottom:1px solid var(--border)}
+.editor-header .editor-path{flex:1;font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.editor-area{flex:1;width:100%;padding:var(--sp-13);background:var(--bg);color:var(--text);border:none;font-family:'SF Mono',Monaco,'Cascadia Code',monospace;font-size:12px;resize:none;outline:none;line-height:1.5}
+
+/* DB Viewer */
+.db-viewer{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.db-toolbar{display:flex;gap:var(--sp-5);padding:var(--sp-8) var(--sp-13);border-bottom:1px solid var(--border);align-items:center;flex-wrap:wrap}
+.db-toolbar select{width:auto;margin-bottom:0}
+.db-table-wrap{flex:1;overflow:auto}
+.db-table{width:100%;border-collapse:collapse;font-size:11px;font-family:'SF Mono',Monaco,'Cascadia Code',monospace}
+.db-table th{position:sticky;top:0;background:var(--surface);text-align:left;padding:var(--sp-5) var(--sp-8);border-bottom:2px solid var(--border);color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap;z-index:1}
+.db-table td{padding:var(--sp-3) var(--sp-8);border-bottom:1px solid var(--border);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.db-table tr:hover{background:var(--surface2)}
+.db-table td[contenteditable]{cursor:text}
+.db-table td[contenteditable]:focus{outline:2px solid var(--primary);outline-offset:-2px;background:var(--bg);white-space:normal;overflow:visible}
+.db-table td.modified{background:rgba(255,231,214,.12)}
+
+/* VectorDB */
+.vecdb-layout{display:grid;grid-template-columns:200px 1fr;flex:1;overflow:hidden}
+.vecdb-sidebar{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.vecdb-main{display:flex;flex-direction:column;overflow:hidden}
+.vecdb-search-bar{display:flex;gap:var(--sp-5);padding:var(--sp-8) var(--sp-13);border-bottom:1px solid var(--border);align-items:center}
+.vecdb-search-bar input{flex:1;margin-bottom:0}
+.vecdb-results{max-height:200px;overflow-y:auto;border-bottom:1px solid var(--border)}
+.vecdb-result-item{padding:var(--sp-8) var(--sp-13);border-bottom:1px solid var(--border);font-size:12px}
+.vecdb-result-item .score{color:var(--primary);font-weight:600;font-size:11px}
+.vecdb-result-item .content{color:var(--text);margin-top:var(--sp-2)}
+.vecdb-result-item .meta{color:var(--text3);font-size:10px;margin-top:var(--sp-2)}
+.vecdb-entries{flex:1;overflow-y:auto;padding:var(--sp-8) var(--sp-13)}
+.vecdb-add-form{padding:var(--sp-8) var(--sp-13);border-top:1px solid var(--border)}
+.vecdb-add-form input{margin-top:var(--sp-3)}
+.col-item{display:flex;align-items:center;gap:var(--sp-5);padding:var(--sp-8) var(--sp-8);border-radius:var(--r-3);cursor:pointer;margin-bottom:var(--sp-2);transition:background 150ms ease;font-size:12px}
+.col-item:hover{background:var(--surface2)}
+.col-item.active{background:var(--primary-soft);border:1px solid var(--primary)}
+.col-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.col-del{background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:0 var(--sp-2);display:none}
+.col-item:hover .col-del{display:block}
+.col-del:hover{color:var(--danger)}
+.col-add-form{padding:var(--sp-8);border-top:1px solid var(--border)}
+.col-add-form input{width:100%;margin-bottom:var(--sp-3)}
+
+/* Console — dynamic theme colors, compact */
+.console-panel{grid-column:1/-1;height:100px;min-height:24px;max-height:40vh;display:flex;flex-direction:column;background:var(--bg);border-top:1px solid var(--border);font-family:'SF Mono',Monaco,'Cascadia Code','Fira Code',monospace;font-size:9px !important;color:var(--text)}
+.console-header{display:flex;align-items:center;gap:var(--sp-5);padding:2px var(--sp-8);background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border-bottom:1px solid var(--border);cursor:ns-resize;flex-shrink:0;user-select:none;height:24px;box-sizing:border-box}
+.console-status-dot{width:5px;height:5px;border-radius:50%;background:var(--success);box-shadow:0 0 3px var(--success);flex-shrink:0}
+.console-status-dot.disconnected{background:var(--danger);box-shadow:0 0 3px var(--danger)}
+.console-title{font-size:10px;font-weight:600;color:var(--text3);white-space:nowrap;flex:1}
+.console-btn{background:none;border:1px solid var(--border);color:var(--text3);padding:0 var(--sp-5);border-radius:var(--r-2);font-size:9px;cursor:pointer;font-family:inherit;line-height:1.4}
+.console-btn:hover{border-color:var(--text2);color:var(--text)}
+.console-output{flex:1;overflow-y:auto;padding:var(--sp-2) var(--sp-8);background:var(--bg);font-size:9px !important}
+.console-line{margin:0;padding:0;line-height:1;font-size:9px !important;white-space:pre-wrap;word-break:break-all}
+.console-line .ts{color:var(--text3);font-size:8px !important}
+.console-line .lvl{font-weight:600;font-size:8px !important;margin:0 var(--sp-3)}
+.console-line .lvl.info{color:var(--success)}
+.console-line .lvl.warn{color:#e0c844}
+.console-line .lvl.error{color:var(--danger)}
+.console-line .lvl.cmd{color:var(--primary)}
+.console-line .lvl.stdout{color:var(--text2)}
+.console-line .lvl.stderr{color:#e08844}
+.console-line .msg{white-space:pre-wrap;word-break:break-all;font-size:9px !important}
+.console-input{flex:1 !important;background:var(--border) !important;border:none !important;color:var(--text) !important;font-family:inherit !important;font-size:9px !important;outline:none !important;padding:2px var(--sp-5) !important;margin:0 var(--sp-5) !important;border-radius:var(--r-2) !important;height:16px !important;min-height:0 !important}
+.console-panel.minimized{height:24px!important;min-height:24px}
+.console-panel.minimized .console-output{display:none}.console-panel.minimized .console-input{display:none}
+
+.scroll-area{flex:1;overflow-y:auto;padding:var(--sp-21)}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+/* Landing Page */
+.landing{background:var(--bg);color:var(--text)}
+.landing-hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:var(--sp-34);position:relative;background:radial-gradient(ellipse at 50% 40%,var(--primary-soft) 0%,transparent 60%)}
+.landing-logo{font-size:64px;font-weight:800;color:var(--primary);letter-spacing:-2px;margin-bottom:var(--sp-8)}
+.landing-tagline{font-size:20px;font-weight:600;color:var(--text);margin-bottom:var(--sp-8)}
+.landing-desc{font-size:14px;color:var(--text2);max-width:520px;line-height:1.7;margin-bottom:var(--sp-21)}
+.landing-badges{display:flex;gap:var(--sp-8);flex-wrap:wrap;justify-content:center;margin-bottom:var(--sp-21)}
+.landing-badge{padding:var(--sp-3) var(--sp-13);border-radius:var(--r-3);font-size:11px;font-weight:600;background:var(--glass);border:1px solid var(--glass-border);color:var(--text2)}
+.landing-badge.accent{background:var(--primary-soft);border-color:var(--primary);color:var(--primary)}
+.landing-claim{font-size:12px;color:var(--text3);margin-bottom:var(--sp-34);letter-spacing:1px;text-transform:uppercase}
+.scroll-cta{display:flex;flex-direction:column;align-items:center;gap:var(--sp-5);cursor:pointer;color:var(--primary);font-size:13px;font-weight:600;animation:bounce 2s infinite;position:absolute;bottom:40px}
+.scroll-cta .arrow{font-size:20px}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(8px)}}
+.landing-section{max-width:960px;margin:0 auto;padding:60px var(--sp-21)}
+.landing-section-title{font-size:18px;font-weight:700;color:var(--primary);text-align:center;margin-bottom:var(--sp-8);letter-spacing:-0.5px}
+.landing-section-sub{font-size:13px;color:var(--text2);text-align:center;margin-bottom:var(--sp-34);max-width:600px;margin-left:auto;margin-right:auto}
+.features-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:var(--sp-13)}
+.feature-card{background:var(--glass);border:1px solid var(--glass-border);border-radius:var(--r-4);padding:var(--sp-13);transition:transform 150ms ease,border-color 150ms ease}
+.feature-card:hover{transform:translateY(-2px);border-color:var(--primary)}
+.feature-card .feature-icon{font-size:22px;margin-bottom:var(--sp-5)}
+.feature-card .feature-name{font-size:12px;font-weight:700;color:var(--text);margin-bottom:var(--sp-3)}
+.feature-card .feature-desc{font-size:11px;color:var(--text2);line-height:1.5}
+.agents-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:var(--sp-21)}
+.agent-card-landing{background:var(--glass);border:1px solid var(--glass-border);border-radius:var(--r-5);padding:var(--sp-21);transition:border-color 150ms ease}
+.agent-card-landing:hover{border-color:var(--primary)}
+.agent-card-landing .agent-card-title{font-size:14px;font-weight:700;color:var(--primary);margin-bottom:var(--sp-5)}
+.agent-card-landing .agent-card-desc{font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:var(--sp-8)}
+.agent-card-landing pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--r-3);padding:var(--sp-8);font-size:11px;font-family:'SF Mono',Monaco,'Cascadia Code',monospace;color:var(--text);overflow-x:auto;margin-bottom:var(--sp-8);line-height:1.5}
+.agent-card-landing .agent-card-use{font-size:11px;color:var(--text3);font-style:italic}
+.arch-diagram{background:var(--glass);border:1px solid var(--glass-border);border-radius:var(--r-5);padding:var(--sp-21);margin-bottom:var(--sp-21)}
+.arch-diagram pre{font-family:'SF Mono',Monaco,'Cascadia Code',monospace;font-size:11px;color:var(--text);line-height:1.4;overflow-x:auto;white-space:pre}
+.traits-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:var(--sp-13)}
+.traits-table th{text-align:left;padding:var(--sp-5) var(--sp-8);border-bottom:2px solid var(--border);color:var(--primary);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+.traits-table td{padding:var(--sp-5) var(--sp-8);border-bottom:1px solid var(--border);color:var(--text2)}
+.traits-table td:first-child{color:var(--text);font-weight:600;font-family:'SF Mono',Monaco,'Cascadia Code',monospace;font-size:11px}
+.benchmarks-row{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp-13)}
+.bench-card{background:var(--glass);border:1px solid var(--glass-border);border-radius:var(--r-4);padding:var(--sp-21);text-align:center;transition:border-color 150ms ease}
+.bench-card:hover{border-color:var(--primary)}
+.bench-card .bench-num{font-size:32px;font-weight:800;color:var(--primary);margin-bottom:var(--sp-3)}
+.bench-card .bench-label{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px}
+.install-tabs{display:flex;gap:var(--sp-3);margin-bottom:var(--sp-13);justify-content:center}
+.install-tab{padding:var(--sp-5) var(--sp-21);border-radius:var(--r-3);font-size:12px;font-weight:600;color:var(--text2);background:var(--glass);border:1px solid var(--glass-border);cursor:pointer;transition:all 120ms ease}
+.install-tab:hover{border-color:var(--text3)}
+.install-tab.active{background:var(--primary);color:var(--btn-text);border-color:var(--primary)}
+.install-block{display:none;background:var(--bg);border:1px solid var(--border);border-radius:var(--r-4);padding:var(--sp-13)}
+.install-block.active{display:block}
+.install-block pre{font-family:'SF Mono',Monaco,'Cascadia Code',monospace;font-size:12px;color:var(--text);line-height:1.6;white-space:pre-wrap}
+.showroom-divider{padding:80px var(--sp-21) 40px;text-align:center;position:relative}
+.showroom-divider::before{content:'';position:absolute;top:50%;left:10%;right:10%;height:1px;background:linear-gradient(90deg,transparent,var(--primary),transparent)}
+.showroom-divider .showroom-label{display:inline-block;background:var(--bg);padding:var(--sp-5) var(--sp-21);font-size:13px;font-weight:700;color:var(--primary);letter-spacing:4px;text-transform:uppercase;position:relative;z-index:1}
+.landing-lang-picker{display:flex;gap:var(--sp-5);justify-content:center;margin-bottom:var(--sp-21)}
+.lang-flag{padding:var(--sp-3) var(--sp-8);border-radius:var(--r-3);font-size:11px;font-weight:700;color:var(--text2);background:var(--glass);border:1px solid var(--glass-border);cursor:pointer;transition:all 120ms ease;letter-spacing:.5px}
+.lang-flag:hover{border-color:var(--text3);color:var(--text)}
+.lang-flag.active{background:var(--primary);color:var(--btn-text);border-color:var(--primary)}
+
+@media(max-width:700px){
+  .layout{grid-template-columns:1fr}.sidebar{display:none}
+  .landing-logo{font-size:40px}
+  .benchmarks-row{grid-template-columns:repeat(2,1fr)}
+  .agents-row{grid-template-columns:1fr}
+  .features-grid{grid-template-columns:repeat(2,1fr)}
+  .landing-section{padding:40px var(--sp-13)}
+}
+</style>
+</head>
+<body>
+
+<!-- Landing Page -->
+<div class="landing" id="landing">
+
+  <!-- Hero -->
+  <section class="landing-hero">
+    <div class="landing-logo">AIRust</div>
+    <div class="landing-lang-picker">
+      <span class="lang-flag active" onclick="setLanguage('en')" title="English">EN</span>
+      <span class="lang-flag" onclick="setLanguage('de')" title="Deutsch">DE</span>
+      <span class="lang-flag" onclick="setLanguage('tr')" title="Türkçe">TR</span>
+    </div>
+    <div class="landing-tagline" data-t="landing.tagline">A trainable, modular AI engine written in Rust</div>
+    <div class="landing-desc" data-t="landing.desc">Build intelligent agents, manage knowledge bases, extract wisdom from PDFs, and deploy a full web dashboard &mdash; all without external AI APIs.</div>
+    <div class="landing-badges">
+      <span class="landing-badge accent" data-t="landing.badge.version">v0.1.7</span>
+      <span class="landing-badge" data-t="landing.badge.license">MIT License</span>
+      <span class="landing-badge" data-t="landing.badge.rust">Rust 1.85+</span>
+      <span class="landing-badge" data-t="landing.badge.tests">156 Tests</span>
+    </div>
+    <div class="landing-claim" data-t="landing.claim">100% Local &middot; Zero Cloud Dependencies &middot; Fully Private</div>
+    <div class="scroll-cta" onclick="document.getElementById('landing-features').scrollIntoView({behavior:'smooth'})">
+      <span data-t="landing.cta">Try it now</span><span class="arrow">&darr;</span>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="landing-section" id="landing-features">
+    <div class="landing-section-title" data-t="landing.features.title">Features</div>
+    <div class="landing-section-sub" data-t="landing.features.sub">Everything you need to build, train, and deploy an AI system</div>
+    <div class="features-grid">
+      <div class="feature-card"><div class="feature-icon">&#129504;</div><div class="feature-name" data-t="landing.feat.agents.name">4 Agent Types</div><div class="feature-desc" data-t="landing.feat.agents.desc">Exact Match, Fuzzy Match, TF-IDF/BM25 Semantic, Context-Aware</div></div>
+      <div class="feature-card"><div class="feature-icon">&#128218;</div><div class="feature-name" data-t="landing.feat.kb.name">Knowledge Base</div><div class="feature-desc" data-t="landing.feat.kb.desc">JSON-based, compile-time embedded, runtime expandable</div></div>
+      <div class="feature-card"><div class="feature-icon">&#128196;</div><div class="feature-name" data-t="landing.feat.pdf.name">PDF Processing</div><div class="feature-desc" data-t="landing.feat.pdf.desc">Convert PDFs to structured training data with smart chunking</div></div>
+      <div class="feature-card"><div class="feature-icon">&#127912;</div><div class="feature-name" data-t="landing.feat.dashboard.name">Web Dashboard</div><div class="feature-desc" data-t="landing.feat.dashboard.desc">Full UI with chat, training manager, bot control, file browser</div></div>
+      <div class="feature-card"><div class="feature-icon">&#129302;</div><div class="feature-name" data-t="landing.feat.bots.name">Bot Ecosystem</div><div class="feature-desc" data-t="landing.feat.bots.desc">Automated web scraping with review workflow</div></div>
+      <div class="feature-card"><div class="feature-icon">&#128200;</div><div class="feature-name" data-t="landing.feat.vectordb.name">Vector Database</div><div class="feature-desc" data-t="landing.feat.vectordb.desc">Embedding storage and similarity search</div></div>
+      <div class="feature-card"><div class="feature-icon">&#128172;</div><div class="feature-name" data-t="landing.feat.chat.name">Chat History</div><div class="feature-desc" data-t="landing.feat.chat.desc">Persistent conversations with archiving</div></div>
+      <div class="feature-card"><div class="feature-icon">&#127760;</div><div class="feature-name" data-t="landing.feat.multilang.name">Multi-Language UI</div><div class="feature-desc" data-t="landing.feat.multilang.desc">English, German, Turkish</div></div>
+      <div class="feature-card"><div class="feature-icon">&#128268;</div><div class="feature-name" data-t="landing.feat.api.name">REST API</div><div class="feature-desc" data-t="landing.feat.api.desc">50+ endpoints for full programmatic control</div></div>
+      <div class="feature-card"><div class="feature-icon">&#128187;</div><div class="feature-name" data-t="landing.feat.console.name">WebSocket Console</div><div class="feature-desc" data-t="landing.feat.console.desc">Live terminal with server logs, shell access, built-in commands</div></div>
+      <div class="feature-card"><div class="feature-icon">&#128230;</div><div class="feature-name" data-t="landing.feat.docker.name">Docker Support</div><div class="feature-desc" data-t="landing.feat.docker.desc">One-command deployment with containers</div></div>
+      <div class="feature-card"><div class="feature-icon">&#9000;</div><div class="feature-name" data-t="landing.feat.cli.name">CLI Tools</div><div class="feature-desc" data-t="landing.feat.cli.desc">Interactive mode, query tools, PDF conversion</div></div>
+    </div>
+  </section>
+
+  <!-- Architecture -->
+  <section class="landing-section">
+    <div class="landing-section-title" data-t="landing.arch.title">Architecture</div>
+    <div class="landing-section-sub" data-t="landing.arch.sub">A layered architecture: agents do the thinking, the knowledge base stores the data, and the web server provides the interface</div>
+    <div class="arch-diagram">
+<pre>                ┌──────────────────────────────────────┐
+                │           AIRust Engine               │
+                ├──────────┬───────────┬───────────────┤
+                │MatchAgent│TfidfAgent │ ContextAgent  │
+                │(exact/   │(BM25      │ (wraps any    │
+                │ fuzzy)   │ semantic) │  agent + mem) │
+                ├──────────┴───────────┴───────────────┤
+                │         Knowledge Base                │
+                │   (JSON / Embedded / Runtime)         │
+                ├──────────────────────────────────────┤
+                │         Text Processing               │
+                │  (tokenize, stopwords, similarity)    │
+                └────────┬──────────┬──────────────────┘
+                         │          │
+                ┌────────▼──┐  ┌────▼──────────────┐
+                │  CLI Tool │  │  Web Server (Axum) │
+                │ (airust)  │  │  + REST API        │
+                └───────────┘  │  + WebSocket       │
+                               │  + SQLite DB       │
+                               │  + Bot Scheduler   │
+                               └───────────────────┘</pre>
+    </div>
+    <table class="traits-table">
+      <thead><tr><th data-t="landing.traits.th.trait">Trait</th><th data-t="landing.traits.th.purpose">Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>Agent</td><td data-t="landing.traits.agent.purpose">Base trait: predict(), confidence(), can_answer()</td></tr>
+        <tr><td>TrainableAgent</td><td data-t="landing.traits.trainable.purpose">Adds train(), add_example()</td></tr>
+        <tr><td>ContextualAgent</td><td data-t="landing.traits.contextual.purpose">Adds add_context(), clear_context() for conversation memory</td></tr>
+        <tr><td>ConfidenceAgent</td><td data-t="landing.traits.confidence.purpose">Adds calculate_confidence(), predict_top_n()</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- Agent Types -->
+  <section class="landing-section">
+    <div class="landing-section-title" data-t="landing.agents.title">Agent Types</div>
+    <div class="landing-section-sub" data-t="landing.agents.sub">The brain of AIRust &mdash; choose the right agent for your use case</div>
+    <div class="agents-row">
+      <div class="agent-card-landing">
+        <div class="agent-card-title" data-t="landing.agent.match.title">MatchAgent</div>
+        <div class="agent-card-desc" data-t="landing.agent.match.desc">The simplest and fastest agent. Compares questions directly against training data using exact or fuzzy matching with Levenshtein distance.</div>
+        <pre>let agent = MatchAgent::new_fuzzy();
+agent.train(&amp;knowledge);
+let answer = agent.predict("hello");</pre>
+        <div class="agent-card-use" data-t="landing.agent.match.use">Best for: FAQ bots, command recognition, structured Q&amp;A</div>
+      </div>
+      <div class="agent-card-landing">
+        <div class="agent-card-title" data-t="landing.agent.tfidf.title">TfidfAgent</div>
+        <div class="agent-card-desc" data-t="landing.agent.tfidf.desc">Semantic search using TF-IDF and BM25 ranking. Understands meaning, not just words. Handles synonyms and related concepts.</div>
+        <pre>let agent = TfidfAgent::new();
+agent.train(&amp;knowledge);
+let answer = agent.predict("greeting");</pre>
+        <div class="agent-card-use" data-t="landing.agent.tfidf.use">Best for: Natural language Q&amp;A, documentation search</div>
+      </div>
+      <div class="agent-card-landing">
+        <div class="agent-card-title" data-t="landing.agent.context.title">ContextAgent</div>
+        <div class="agent-card-desc" data-t="landing.agent.context.desc">Wraps any agent and adds conversation memory. Maintains context across messages for multi-turn dialogue.</div>
+        <pre>let agent = ContextAgent::new(inner);
+agent.add_context("previous question");
+let answer = agent.predict("and this?");</pre>
+        <div class="agent-card-use" data-t="landing.agent.context.use">Best for: Chatbots, support agents, interactive assistants</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Benchmarks -->
+  <section class="landing-section">
+    <div class="landing-section-title" data-t="landing.bench.title">By the Numbers</div>
+    <div class="landing-section-sub" data-t="landing.bench.sub">Built for performance, privacy, and simplicity</div>
+    <div class="benchmarks-row">
+      <div class="bench-card"><div class="bench-num">156</div><div class="bench-label" data-t="landing.bench.tests.label">Tests Passing</div></div>
+      <div class="bench-card"><div class="bench-num">0</div><div class="bench-label" data-t="landing.bench.apis.label">External APIs</div></div>
+      <div class="bench-card"><div class="bench-num">50+</div><div class="bench-label" data-t="landing.bench.endpoints.label">REST Endpoints</div></div>
+      <div class="bench-card"><div class="bench-num">100%</div><div class="bench-label" data-t="landing.bench.local.label">Local &amp; Private</div></div>
+    </div>
+  </section>
+
+  <!-- Installation -->
+  <section class="landing-section">
+    <div class="landing-section-title" data-t="landing.install.title">Get Started</div>
+    <div class="landing-section-sub" data-t="landing.install.sub">Up and running in seconds</div>
+    <div class="install-tabs">
+      <button class="install-tab active" onclick="switchInstall('cargo',this)">Cargo</button>
+      <button class="install-tab" onclick="switchInstall('docker',this)">Docker</button>
+      <button class="install-tab" onclick="switchInstall('source',this)">Source</button>
+    </div>
+    <div class="install-block active" id="install-cargo">
+<pre># Add to your Cargo.toml
+[dependencies]
+airust = "0.1.7"
+
+# Or run directly
+cargo install airust
+cargo run --release</pre>
+    </div>
+    <div class="install-block" id="install-docker">
+<pre># Build and run with Docker
+docker build -t airust .
+docker run -p 7070:7070 airust</pre>
+    </div>
+    <div class="install-block" id="install-source">
+<pre># Clone and build from source
+git clone https://github.com/LEVOGNE/airust.git
+cd airust
+cargo build --release
+cargo run --release</pre>
+    </div>
+  </section>
+
+  <!-- Showroom Divider -->
+  <div class="showroom-divider">
+    <span class="showroom-label" data-t="landing.showroom">SHOWROOM</span>
+  </div>
+
+</div>
+
+<div class="layout" id="app">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <span class="logo">AIRust</span>
+      <span class="version" id="version-tag"></span>
+    </div>
+    <div class="sidebar-nav">
+      <div class="nav-item active" onclick="switchView('chat')" data-view="chat"><span data-t="nav.chat">Chat</span></div>
+      <div class="nav-item" onclick="switchView('knowledge')" data-view="knowledge"><span data-t="nav.knowledge">Brain</span></div>
+      <div class="nav-item" onclick="switchView('tools')" data-view="tools"><span data-t="nav.tools">Tools</span></div>
+      <div class="nav-item" onclick="switchView('settings')" data-view="settings"><span data-t="nav.settings">Settings</span></div>
+      <div class="nav-item" onclick="switchView('guide')" data-view="guide"><span data-t="nav.guide">Guide</span></div>
+    </div>
+    <div class="nav-sep"></div>
+    <div class="sidebar-chats visible" id="sidebar-chats">
+      <div class="sidebar-chats-header" data-t="nav.chats">Chats</div>
+      <button class="new-chat-btn" onclick="newChat()" data-t="chat.new">New Chat</button>
+      <div class="chat-list" id="chat-list"></div>
+      <div class="archive-toggle" id="archive-toggle" onclick="toggleArchive()" data-t="chat.show_archive">Show Archive</div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <div class="status-bar">
+      <span class="status-dot"></span>
+      <span class="lvl info" id="st-agent">&mdash;</span>
+      <span class="sep">|</span>
+      <span id="st-examples">&mdash;</span> entries
+      <span class="sep">|</span>
+      <span id="st-version"></span>
+    </div>
+
+    <!-- Chat View -->
+    <div class="view active" id="view-chat">
+      <div class="chat-panel">
+        <div class="messages" id="messages"><div class="messages-inner" id="messages-inner"><div class="empty-chat" id="empty-chat">AIRust</div></div></div>
+        <div class="chat-input-area">
+          <input type="text" id="chat-input" data-t-placeholder="chat.placeholder" placeholder="Ask a question..." onkeydown="if(event.key==='Enter')sendMsg()" style="margin-bottom:0">
+          <button class="send-btn" onclick="sendMsg()" data-t="chat.send">Send</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Knowledge View -->
+    <div class="view" id="view-knowledge">
+      <div class="sub-tabs">
+        <button class="sub-tab active" onclick="switchSubView('knowledge','kb-all')" data-t="kb.all">All</button>
+        <button class="sub-tab" onclick="switchSubView('knowledge','kb-categories')" data-t="kb.categories">Categories</button>
+        <button class="sub-tab" onclick="switchSubView('knowledge','kb-import')" data-t="kb.import">Import</button>
+      </div>
+      <!-- All -->
+      <div class="sub-view active" id="sv-kb-all">
+        <div class="kb-toolbar">
+          <input type="text" id="kb-search" placeholder="Search..." oninput="kbSearchChanged()" data-t-placeholder="kb.search">
+          <button class="btn btn-primary" onclick="toggleKbAdd()" data-t="training.add_example">+ Add</button>
+        </div>
+        <div class="kb-add-slide" id="kb-add-slide">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-5)">
+            <input type="text" id="train-input" placeholder="Question / Input" data-t-placeholder="kb.input">
+            <input type="text" id="train-output" placeholder="Answer / Output" data-t-placeholder="kb.output">
+          </div>
+          <div style="display:flex;gap:var(--sp-5);margin-top:var(--sp-5);align-items:center">
+            <select id="train-format" style="width:auto;margin-bottom:0">
+              <option value="text">Text</option><option value="markdown">Markdown</option><option value="json">JSON</option>
+            </select>
+            <input type="number" id="train-weight" value="1.0" step="0.1" style="width:60px;margin-bottom:0">
+            <select id="train-category" style="width:auto;margin-bottom:0"><option value="">No Category</option></select>
+            <button class="btn btn-primary btn-sm" onclick="addTrainingData()">Add</button>
+            <button class="btn btn-ghost btn-sm" onclick="toggleKbAdd()">Cancel</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="t-table" id="training-table">
+            <thead><tr><th>Input</th><th>Output</th><th>Fmt</th><th>W</th><th>Category</th><th></th></tr></thead>
+            <tbody id="training-tbody"></tbody>
+          </table>
+        </div>
+        <div class="pager">
+          <button onclick="tdPage(-1)" id="td-prev" disabled>&laquo;</button>
+          <span id="td-pager-info">-</span>
+          <button onclick="tdPage(1)" id="td-next" disabled>&raquo;</button>
+        </div>
+      </div>
+      <!-- Categories -->
+      <div class="sub-view" id="sv-kb-categories">
+        <div class="cat-add-bar">
+          <input type="text" id="new-cat-name" data-t-placeholder="training.category_name" placeholder="Category Name" style="flex:1">
+          <input type="color" id="new-cat-color" value="#ffe7d6" style="width:36px;height:28px;margin-bottom:0">
+          <button class="btn btn-primary btn-sm" onclick="createCategory()">+ Add</button>
+        </div>
+        <div class="cat-grid" id="cat-grid"></div>
+      </div>
+      <!-- Import -->
+      <div class="sub-view" id="sv-kb-import">
+        <div class="import-grid">
+          <div class="import-section">
+            <div class="import-title" data-t="pdf.title">Upload PDF</div>
+            <div class="drop-zone" id="drop-zone" onclick="document.getElementById('pdf-input').click()">
+              <input type="file" id="pdf-input" accept=".pdf"><span data-t="pdf.drop">Drop PDF here or click</span>
+            </div>
+          </div>
+          <div class="import-section">
+            <div class="import-title">Upload JSON</div>
+            <div class="drop-zone" onclick="document.getElementById('json-upload-input').click()">
+              <input type="file" id="json-upload-input" accept=".json" onchange="handleJSONUpload(this)"><span>Drop JSON file or click</span>
+            </div>
+          </div>
+          <div class="import-section">
+            <div class="import-title" data-t="import.title">Tatoeba TSV</div>
+            <div style="font-size:10px;color:var(--text3);margin-bottom:var(--sp-8)" data-t="import.info">Bilingual sentence pairs</div>
+            <div class="drop-zone" id="tsv-drop-zone" onclick="document.getElementById('tsv-input').click()">
+              <input type="file" id="tsv-input" accept=".tsv,.txt,.csv"><span data-t="import.drop">Drop TSV file here or click</span>
+            </div>
+          </div>
+          <div class="import-section">
+            <div class="import-title">Export</div>
+            <button class="btn btn-secondary btn-full" onclick="exportTrainingJSON()" style="margin-bottom:var(--sp-8)" data-t="training.export">Export JSON</button>
+            <button class="btn btn-secondary btn-full" onclick="importTrainingJSON()" data-t="training.import">Paste JSON</button>
+          </div>
+        </div>
+        <div class="kb-path-bar">
+          <input type="text" id="kb-path" placeholder="./knowledge/my.json" data-t-placeholder="kb.path_placeholder">
+          <button onclick="saveKB()" data-t="kb.save">Save</button>
+          <button onclick="loadKB()" data-t="kb.load">Load</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tools View -->
+    <div class="view" id="view-tools">
+      <div class="sub-tabs">
+        <button class="sub-tab active" onclick="switchSubView('tools','tools-bots')" data-t="bot.title">Bots</button>
+        <button class="sub-tab" onclick="switchSubView('tools','tools-review')" data-t="nav.review">Review</button>
+        <button class="sub-tab" onclick="switchSubView('tools','tools-files')" data-t="tab.files">Files</button>
+        <button class="sub-tab" onclick="switchSubView('tools','tools-vecdb')" data-t="tab.vectordb">VectorDB</button>
+      </div>
+      <!-- Bots -->
+      <div class="sub-view active" id="sv-tools-bots">
+        <div style="padding:var(--sp-8) var(--sp-21);border-bottom:1px solid var(--border);display:flex;gap:var(--sp-8);flex-shrink:0">
+          <button class="btn btn-primary" onclick="toggleBotForm()" data-t="bot.new">+ New Bot</button>
+        </div>
+        <div class="bot-form" id="bot-form">
+          <div><label data-t="bot.name">Name</label><input type="text" id="bot-name" placeholder="My Crawler"></div>
+          <div><label data-t="bot.type">Type</label><select id="bot-type" onchange="updateBotFormFields()"><option value="crawler" data-t="bot.crawler">Web Crawler</option><option value="processor" data-t="bot.processor">Data Processor</option></select></div>
+          <div class="full-width"><label data-t="bot.url">URL</label><input type="url" id="bot-url" placeholder="https://example.com"></div>
+          <div class="conditional-field crawler-field visible"><label data-t="bot.mode">Mode</label><select id="bot-mode"><option value="single_page">Single Page</option><option value="links_follow">Follow Links</option></select></div>
+          <div class="conditional-field crawler-field visible"><label>Max Depth</label><input type="number" id="bot-max-depth" value="2" min="1" max="10"></div>
+          <div class="conditional-field crawler-field visible"><label>Rate Limit (ms)</label><input type="number" id="bot-rate-limit" value="1000" min="100" step="100"></div>
+          <div class="conditional-field processor-field"><label>Strategy</label><select id="bot-strategy"><option value="heading_content">Heading + Content</option><option value="paragraph">Paragraph</option><option value="sentence">Sentence</option></select></div>
+          <div class="conditional-field processor-field"><label>Min Length</label><input type="number" id="bot-min-length" value="20" min="1"></div>
+          <div class="btn-row"><button class="btn btn-primary" onclick="createBot()">Create</button><button class="btn btn-ghost" onclick="toggleBotForm()">Cancel</button></div>
+        </div>
+        <div class="scroll-area" id="bot-list-wrap">
+          <div id="bot-list" style="padding:var(--sp-8) var(--sp-21)"></div>
+          <div id="bot-runs-section" style="display:none;padding:0 var(--sp-21)"><div class="section-title" style="margin-top:var(--sp-13)">Runs</div><div id="bot-runs-list"></div><div id="run-data-panel"></div></div>
+        </div>
+      </div>
+      <!-- Review -->
+      <div class="sub-view" id="sv-tools-review">
+        <div style="padding:var(--sp-8) var(--sp-21);border-bottom:1px solid var(--border);display:flex;gap:var(--sp-8);flex-shrink:0">
+          <button class="btn btn-success btn-sm" onclick="approveAllData()" data-t="data.approve_all">Approve All</button>
+          <button class="btn btn-primary btn-sm" onclick="addToKB()" data-t="data.add_to_kb">Add to Knowledge</button>
+        </div>
+        <div class="scroll-area">
+          <div class="section-title" data-t="data.title">Pending</div>
+          <div id="pending-data-list"></div>
+          <div class="approved-toggle" onclick="toggleApproved()">Show Approved</div>
+          <div class="review-approved" id="review-approved">
+            <div class="section-title">Approved</div>
+            <div id="approved-data-list"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Files -->
+      <div class="sub-view" id="sv-tools-files">
+        <div class="files-layout">
+          <div class="files-browser">
+            <div class="files-path-bar">
+              <input type="text" id="files-path" value="." placeholder="Path..." onkeydown="if(event.key==='Enter')loadFiles()">
+              <button class="btn btn-primary btn-sm" onclick="loadFiles()">Go</button>
+              <button class="btn btn-secondary btn-sm" onclick="createFolder()" data-t="files.new_folder">Folder</button>
+              <button class="btn btn-secondary btn-sm" onclick="createFile()" data-t="files.new_file">File</button>
+            </div>
+            <div class="file-list" id="file-list"></div>
+          </div>
+          <div class="files-editor" id="text-editor-panel">
+            <div class="editor-header">
+              <span class="editor-path" id="editor-path">No file selected</span>
+              <button class="btn btn-primary btn-sm" onclick="saveFile()" data-t="files.save">Save</button>
+            </div>
+            <textarea class="editor-area" id="editor-area" placeholder="Select a file to edit..."></textarea>
+          </div>
+          <div class="db-viewer" id="db-viewer-panel" style="display:none">
+            <div class="db-toolbar">
+              <span class="editor-path" id="db-path" style="flex:1">No database selected</span>
+              <select id="db-table-select" onchange="loadDbTable()" style="width:auto;margin-bottom:0"></select>
+              <button class="btn btn-primary btn-sm" onclick="saveDbChanges()">Save</button>
+              <button class="btn btn-ghost btn-sm" onclick="discardDbChanges()">Discard</button>
+            </div>
+            <div class="db-table-wrap" id="db-table-wrap"></div>
+            <div class="pager">
+              <button onclick="dbPage(-1)" id="db-prev" disabled>&laquo;</button>
+              <span id="db-pager-info">-</span>
+              <button onclick="dbPage(1)" id="db-next" disabled>Next &raquo;</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- VectorDB -->
+      <div class="sub-view" id="sv-tools-vecdb">
+        <div class="vecdb-layout">
+          <div class="vecdb-sidebar">
+            <div style="padding:var(--sp-8);font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)" data-t="vectordb.collections">Collections</div>
+            <div style="flex:1;overflow-y:auto;padding:var(--sp-3)" id="col-list"></div>
+            <div class="col-add-form">
+              <input type="text" id="new-col-name" placeholder="Collection Name">
+              <input type="text" id="new-col-desc" placeholder="Description">
+              <button class="btn btn-primary btn-sm btn-full" onclick="createCollection()" data-t="vectordb.new_collection">+ New</button>
+            </div>
+          </div>
+          <div class="vecdb-main">
+            <div class="vecdb-search-bar">
+              <input type="text" id="vec-search-input" placeholder="Similarity search..." data-t-placeholder="vectordb.search">
+              <button class="btn btn-primary btn-sm" onclick="vectorSearch()" data-t="vectordb.search_btn">Search</button>
+            </div>
+            <div class="vecdb-results" id="vec-results" style="display:none"></div>
+            <div class="vecdb-entries" id="vec-entries"></div>
+            <div class="vecdb-add-form" id="vec-add-form">
+              <textarea id="vec-content" placeholder="Content..."></textarea>
+              <input type="text" id="vec-metadata" placeholder='Metadata JSON (e.g. {"source":"manual"})'>
+              <button class="btn btn-primary btn-sm btn-full" onclick="addVectorEntry()" style="margin-top:var(--sp-5)" data-t="vectordb.add_entry">Add Entry</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings View -->
+    <div class="view" id="view-settings">
+      <div class="scroll-area">
+        <div class="section">
+          <div class="section-title" data-t="nav.agent">Agent</div>
+          <div id="agent-list">
+            <label class="agent-option active"><input type="checkbox" name="agent" value="tfidf" checked><div><div class="agent-name" data-t="agent.tfidf.name">Smart Search</div><div class="agent-tech" data-t="agent.tfidf.desc">Finds best answer by meaning</div></div></label>
+            <label class="agent-option active"><input type="checkbox" name="agent" value="exact" checked><div><div class="agent-name" data-t="agent.exact.name">Word-for-Word</div><div class="agent-tech" data-t="agent.exact.desc">Must match exactly</div></div></label>
+            <label class="agent-option active"><input type="checkbox" name="agent" value="fuzzy" checked><div><div class="agent-name" data-t="agent.fuzzy.name">Close Enough</div><div class="agent-tech" data-t="agent.fuzzy.desc">Also finds typos</div></div></label>
+            <label class="agent-option active"><input type="checkbox" name="agent" value="context" checked><div><div class="agent-name" data-t="agent.context.name">Remembers Chat</div><div class="agent-tech" data-t="agent.context.desc">Uses previous messages</div></div></label>
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-title" data-t="settings.theme">Appearance</div>
+          <div class="setting-row"><span class="setting-label" data-t="settings.theme">Theme</span><div class="theme-toggle"><button class="theme-btn active" data-theme-val="dark" onclick="setTheme('dark')" data-t="settings.dark">Dark</button><button class="theme-btn" data-theme-val="light" onclick="setTheme('light')" data-t="settings.light">Light</button></div></div>
+          <div class="setting-row"><span class="setting-label" data-t="settings.color">Accent Color</span><input type="color" id="accent-color" value="#ffe7d6" oninput="setAccentColor(this.value)"></div>
+          <div class="setting-row"><span class="setting-label" data-t="settings.bg_color">Background</span><input type="color" id="bg-color" value="#1a1b2e" oninput="setBgColor(this.value)"></div>
+          <div class="setting-row"><label style="display:flex;align-items:center;gap:var(--sp-8);cursor:pointer"><input type="checkbox" id="bg-auto" checked onchange="setBgAuto(this.checked)" style="accent-color:var(--primary)"><span class="setting-label" data-t="settings.bg_auto">Auto from Accent</span></label></div>
+          <div class="setting-row"><span class="setting-label" data-t="settings.text_color">Text Color</span><input type="color" id="text-color" value="#e4e4f0" oninput="setTextColor(this.value)"></div>
+          <div class="setting-row"><label style="display:flex;align-items:center;gap:var(--sp-8);cursor:pointer"><input type="checkbox" id="text-auto" checked onchange="setTextAuto(this.checked)" style="accent-color:var(--primary)"><span class="setting-label" data-t="settings.text_auto">Auto from BG</span></label></div>
+        </div>
+        <div class="section">
+          <div class="section-title" data-t="settings.language">Language</div>
+          <div class="setting-row"><span class="setting-label" data-t="settings.language">Language</span><select id="lang-select" onchange="setLanguage(this.value)" style="width:auto;margin-bottom:0"><option value="en">English</option><option value="de">Deutsch</option><option value="tr">Turkce</option></select></div>
+          <div class="setting-row"><span class="setting-label" data-t="settings.font_size">Text Size</span><input type="range" id="font-size-slider" min="11" max="20" value="13" oninput="setFontSize(this.value)"><span class="font-size-display" id="font-size-display">13</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Guide View -->
+    <div class="view" id="view-guide">
+      <div class="guide-content" id="guide-content"></div>
+    </div>
+  </div>
+
+  <!-- Console -->
+  <div class="console-panel" id="console-panel">
+    <div class="console-header" id="console-header">
+      <span class="console-status-dot" id="console-dot"></span>
+      <span class="console-title" data-t="console.title">Console</span>
+      <input type="text" class="console-input" id="console-input" data-t-placeholder="console.placeholder" placeholder="Type a command..." onkeydown="consoleKeyDown(event)" autocomplete="off" spellcheck="false">
+      <button class="console-btn" onclick="consoleClear()" data-t="console.clear">Clear</button>
+      <button class="console-btn" onclick="consoleToggleSize()" id="console-toggle-btn">_</button>
+    </div>
+    <div class="console-output" id="console-output"></div>
+  </div>
+</div>
+
+<script>
+// Install tab switcher
+function switchInstall(id,el){
+  document.querySelectorAll('.install-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.install-block').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('install-'+id).classList.add('active');
+}
+
+const API='';let currentChatId=null;let showArchived=false;let translations={};let currentLang='en';let bgAutoEnabled=true;let textAutoEnabled=true;let currentTheme='dark';let currentView='chat';let allCategories=[];
+
+// View System
+function switchView(id){
+  currentView=id;
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.getAttribute('data-view')===id));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+id).classList.add('active');
+  document.getElementById('sidebar-chats').classList.toggle('visible',id==='chat');
+  if(id==='knowledge'){loadCategories();loadTrainingDataPaged()}
+  if(id==='tools'){loadBots()}
+  if(id==='settings'){}
+  if(id==='guide'){loadGuide()}
+}
+
+function switchSubView(parent,sub){
+  const view=document.getElementById('view-'+parent);
+  view.querySelectorAll('.sub-tab').forEach((b,i)=>{
+    const subs=view.querySelectorAll('.sub-view');
+    b.classList.toggle('active',subs[i]&&subs[i].id==='sv-'+sub);
+  });
+  view.querySelectorAll('.sub-view').forEach(s=>s.classList.toggle('active',s.id==='sv-'+sub));
+  if(sub==='kb-all'){loadTrainingDataPaged()}
+  if(sub==='kb-categories'){loadCategoryCards()}
+  if(sub==='tools-bots'){loadBots()}
+  if(sub==='tools-review'){loadPendingData();loadApprovedData()}
+  if(sub==='tools-files'){loadFiles()}
+  if(sub==='tools-vecdb'){loadCollections()}
+}
+
+// Settings
+async function loadSettings(){try{const r=await fetch(API+'/api/settings');const s=await r.json();if(s.theme){currentTheme=s.theme;applyTheme(s.theme)}const p=currentTheme+'.';const ba=s[p+'bg_auto'];if(ba!==undefined)applyBgAuto(ba==='true');const ta=s[p+'text_auto'];if(ta!==undefined)applyTextAuto(ta==='true');const ac=s[p+'accent_color'];if(ac)applyAccentColor(ac);const bg=s[p+'bg_color'];if(bg&&!bgAutoEnabled)applyBgColor(bg);const tc=s[p+'text_color'];if(tc&&!textAutoEnabled)applyTextColor(tc);if(s.language){currentLang=s.language;document.getElementById('lang-select').value=s.language;await loadTranslations(s.language)}if(s.font_size)applyFontSize(s.font_size)}catch(e){console.error('Settings error',e)}}
+
+async function saveSetting(k,v){try{const b={};b[k]=v;await fetch(API+'/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)})}catch(e){console.error('Save setting error',e)}}
+
+async function saveThemeColors(){const ac=document.getElementById('accent-color').value;const bg=document.getElementById('bg-color').value;const tc=document.getElementById('text-color').value;const b={};b[currentTheme+'.accent_color']=ac;b[currentTheme+'.bg_color']=bg;b[currentTheme+'.bg_auto']=bgAutoEnabled?'true':'false';b[currentTheme+'.text_color']=tc;b[currentTheme+'.text_auto']=textAutoEnabled?'true':'false';try{await fetch(API+'/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)})}catch(e){console.error('Save theme colors error',e)}}
+
+async function setTheme(t){await saveThemeColors();currentTheme=t;saveSetting('theme',t);applyTheme(t);await loadSettings()}
+function applyTheme(t){document.documentElement.setAttribute('data-theme',t);document.querySelectorAll('.theme-btn').forEach(b=>b.classList.toggle('active',b.getAttribute('data-theme-val')===t))}
+
+function setAccentColor(c){applyAccentColor(c);saveSetting(currentTheme+'.accent_color',c);if(bgAutoEnabled)saveSetting(currentTheme+'.bg_color',document.getElementById('bg-color').value)}
+function applyAccentColor(c){document.getElementById('accent-color').value=c;const r=parseInt(c.slice(1,3),16),g=parseInt(c.slice(3,5),16),b=parseInt(c.slice(5,7),16);const h='#'+[r,g,b].map(x=>Math.max(0,x-16).toString(16).padStart(2,'0')).join('');document.documentElement.style.setProperty('--primary',c);document.documentElement.style.setProperty('--primary-hover',h);document.documentElement.style.setProperty('--primary-soft',c+'1a');const l=(r*299+g*587+b*114)/1000;document.documentElement.style.setProperty('--btn-text',l>150?'#1a1a2e':'#ffffff');if(bgAutoEnabled)applyComplementaryBg(c)}
+
+function setBgColor(c){applyBgColor(c);saveSetting(currentTheme+'.bg_color',c)}
+function applyBgColor(c){document.getElementById('bg-color').value=c;document.documentElement.style.setProperty('--bg',c);const r=parseInt(c.slice(1,3),16),g=parseInt(c.slice(3,5),16),b=parseInt(c.slice(5,7),16);const l=(r*299+g*587+b*114)/1000;const s=l<128?1:-1;const sf='#'+[r,g,b].map(x=>Math.max(0,Math.min(255,x+10*s)).toString(16).padStart(2,'0')).join('');const s2='#'+[r,g,b].map(x=>Math.max(0,Math.min(255,x+20*s)).toString(16).padStart(2,'0')).join('');const bd='#'+[r,g,b].map(x=>Math.max(0,Math.min(255,x+32*s)).toString(16).padStart(2,'0')).join('');const cb='#'+[r,g,b].map(x=>Math.max(0,Math.min(255,x+16*s)).toString(16).padStart(2,'0')).join('');const cu='#'+[r,g,b].map(x=>Math.max(0,Math.min(255,x+30*s)).toString(16).padStart(2,'0')).join('');document.documentElement.style.setProperty('--surface',sf);document.documentElement.style.setProperty('--surface2',s2);document.documentElement.style.setProperty('--border',bd);document.documentElement.style.setProperty('--chat-bot',cb);document.documentElement.style.setProperty('--chat-user',cu);if(textAutoEnabled)applyComplementaryText(c)}
+
+function setBgAuto(v){bgAutoEnabled=v;saveSetting(currentTheme+'.bg_auto',v?'true':'false');document.getElementById('bg-color').disabled=v;if(v){applyComplementaryBg(document.getElementById('accent-color').value);saveSetting(currentTheme+'.bg_color',document.getElementById('bg-color').value)}}
+function applyBgAuto(v){bgAutoEnabled=v;document.getElementById('bg-auto').checked=v;document.getElementById('bg-color').disabled=v}
+function applyComplementaryBg(c){const r=255-parseInt(c.slice(1,3),16),g=255-parseInt(c.slice(3,5),16),b=255-parseInt(c.slice(5,7),16);applyBgColor('#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join(''))}
+
+function setTextColor(c){applyTextColor(c);saveSetting(currentTheme+'.text_color',c)}
+function applyTextColor(c){document.getElementById('text-color').value=c;const r=parseInt(c.slice(1,3),16),g=parseInt(c.slice(3,5),16),b=parseInt(c.slice(5,7),16);document.documentElement.style.setProperty('--text',c);const t2='#'+[r,g,b].map(x=>Math.max(0,Math.min(255,x>128?x-50:x+50)).toString(16).padStart(2,'0')).join('');const t3='#'+[r,g,b].map(x=>Math.max(0,Math.min(255,x>128?x-80:x+80)).toString(16).padStart(2,'0')).join('');document.documentElement.style.setProperty('--text2',t2);document.documentElement.style.setProperty('--text3',t3)}
+
+function setTextAuto(v){textAutoEnabled=v;saveSetting(currentTheme+'.text_auto',v?'true':'false');document.getElementById('text-color').disabled=v;if(v){applyComplementaryText(document.getElementById('bg-color').value);saveSetting(currentTheme+'.text_color',document.getElementById('text-color').value)}}
+function applyTextAuto(v){textAutoEnabled=v;document.getElementById('text-auto').checked=v;document.getElementById('text-color').disabled=v}
+function applyComplementaryText(c){const r=255-parseInt(c.slice(1,3),16),g=255-parseInt(c.slice(3,5),16),b=255-parseInt(c.slice(5,7),16);applyTextColor('#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join(''))}
+
+function setLanguage(l){currentLang=l;saveSetting('language',l);loadTranslations(l)}
+function setFontSize(s){applyFontSize(s);saveSetting('font_size',s)}
+function applyFontSize(s){document.querySelector('.main-content').style.fontSize=s+'px';document.getElementById('font-size-slider').value=s;document.getElementById('font-size-display').textContent=s}
+
+// Translations
+async function loadTranslations(l){try{const r=await fetch(API+'/api/translations/'+l);translations=await r.json();applyTranslations()}catch(e){console.error('Translation error',e)}}
+function applyTranslations(){document.querySelectorAll('[data-t]').forEach(el=>{const k=el.getAttribute('data-t');if(translations[k])el.textContent=translations[k]});document.querySelectorAll('[data-t-placeholder]').forEach(el=>{const k=el.getAttribute('data-t-placeholder');if(translations[k])el.placeholder=translations[k]});document.querySelectorAll('.lang-flag').forEach(f=>f.classList.toggle('active',f.textContent.trim().toLowerCase()===currentLang));const ls=document.getElementById('lang-select');if(ls)ls.value=currentLang}
+function t(k){return translations[k]||k}
+
+// Status
+async function refreshStatus(){try{const r=await fetch(API+'/api/status');const d=await r.json();const agents=d.active_agents||[d.agent];const names=agents.map(a=>translations['agent.'+a+'.name']||a);document.getElementById('st-agent').textContent='('+names.join(' + ')+')';document.getElementById('st-examples').textContent=d.examples.toLocaleString();document.getElementById('st-version').textContent='v'+d.version;document.getElementById('version-tag').textContent='v'+d.version;updateAgentCheckboxes(agents)}catch(e){console.error('Status error',e)}}
+function updateAgentCheckboxes(active){document.querySelectorAll('input[name=agent]').forEach(cb=>{const isActive=active.includes(cb.value);cb.checked=isActive;cb.closest('.agent-option').classList.toggle('active',isActive)})}
+
+// Agent Switching
+document.querySelectorAll('input[name=agent]').forEach(cb=>{cb.addEventListener('change',async()=>{const checked=Array.from(document.querySelectorAll('input[name=agent]:checked')).map(c=>c.value);if(checked.length===0){cb.checked=true;return}document.querySelectorAll('.agent-option').forEach(o=>{const inp=o.querySelector('input[name=agent]');o.classList.toggle('active',inp&&inp.checked)});try{await fetch(API+'/api/agent/switch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent_types:checked})});refreshStatus()}catch(e){console.error('Switch error',e)}})});
+
+// Chat
+async function loadChats(){try{const r=await fetch(API+'/api/chats'+(showArchived?'?include_archived=true':''));const chats=await r.json();const list=document.getElementById('chat-list');list.innerHTML='';chats.forEach(c=>{const d=document.createElement('div');d.className='chat-item'+(c.id===currentChatId?' active':'')+(c.archived?' archived':'');d.innerHTML=`<div class="chat-title">${esc(c.title||'New Chat')}</div><div class="chat-actions">${!c.archived?`<button class="chat-action-btn" onclick="event.stopPropagation();archiveChat(${c.id})" title="${t('chat.archive')}">&#128230;</button>`:''}<button class="chat-action-btn danger" onclick="event.stopPropagation();deleteChat(${c.id})" title="${t('chat.delete')}">&#10005;</button></div>`;d.onclick=()=>selectChat(c.id);list.appendChild(d)})}catch(e){console.error('Load chats error',e)}}
+
+async function newChat(){try{const r=await fetch(API+'/api/chats',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:''})});const d=await r.json();currentChatId=d.id;document.getElementById('messages-inner').innerHTML='';switchView('chat');loadChats()}catch(e){console.error('New chat error',e)}}
+
+async function selectChat(id){currentChatId=id;switchView('chat');loadChats();try{const r=await fetch(API+'/api/chats/'+id+'/messages');const msgs=await r.json();const c=document.getElementById('messages-inner');c.innerHTML='';if(msgs.length===0)c.innerHTML='<div class="empty-chat" id="empty-chat">AIRust</div>';else msgs.forEach(m=>addMessage(m.content,m.role==='user'?'user':'bot',m.confidence))}catch(e){console.error('Load messages error',e)}}
+
+async function deleteChat(id){try{await fetch(API+'/api/chats/'+id,{method:'DELETE'});if(currentChatId===id){currentChatId=null;document.getElementById('messages-inner').innerHTML='<div class="empty-chat" id="empty-chat">AIRust</div>'}loadChats()}catch(e){console.error('Delete chat error',e)}}
+
+async function archiveChat(id){try{await fetch(API+'/api/chats/'+id+'/archive',{method:'POST'});if(currentChatId===id){currentChatId=null;document.getElementById('messages-inner').innerHTML='<div class="empty-chat" id="empty-chat">AIRust</div>'}loadChats()}catch(e){console.error('Archive error',e)}}
+
+function toggleArchive(){showArchived=!showArchived;const el=document.getElementById('archive-toggle');el.setAttribute('data-t',showArchived?'chat.hide_archive':'chat.show_archive');el.textContent=t(showArchived?'chat.hide_archive':'chat.show_archive');loadChats()}
+
+function addMessage(text,type,confidence){const empty=document.getElementById('empty-chat');if(empty)empty.remove();const d=document.createElement('div');d.className='msg '+type;d.textContent=text;if(type==='bot'&&confidence!==undefined&&confidence!==null){const c=document.createElement('div');c.className='confidence';c.textContent=t('chat.confidence')+': '+(confidence*100).toFixed(1)+'%';d.appendChild(c)}document.getElementById('messages-inner').appendChild(d);d.scrollIntoView({behavior:'smooth'})}
+
+async function sendMsg(){const inp=document.getElementById('chat-input');const text=inp.value.trim();if(!text)return;inp.value='';if(!currentChatId){try{const r=await fetch(API+'/api/chats',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:text.substring(0,50)})});const d=await r.json();currentChatId=d.id;loadChats()}catch(e){console.error('Auto-create chat error',e)}}addMessage(text,'user');const isCtx=Array.from(document.querySelectorAll('input[name=agent]:checked')).some(c=>c.value==='context');try{const r=await fetch(API+'/api/query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({input:text,add_context:isCtx,chat_id:currentChatId})});const d=await r.json();addMessage(d.response,'bot',d.confidence);if(d.settings_changed&&d.settings_changed.length>0){await loadSettings();refreshStatus()}}catch(e){addMessage('Error: '+e.message,'bot')}}
+
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+
+// Knowledge - Training Data (paginated, primary data source for All tab)
+let selectedCategoryId=null;let tdOffset=0;const tdLimit=30;let kbSearchTimer=null;
+
+async function loadTrainingDataPaged(){
+  try{
+    let url=API+'/api/training/data';
+    const params=[];
+    if(selectedCategoryId!==null)params.push('category_id='+selectedCategoryId);
+    if(params.length)url+='?'+params.join('&');
+    const r=await fetch(url);const data=await r.json();
+    const search=document.getElementById('kb-search').value.trim().toLowerCase();
+    let filtered=data;
+    if(search)filtered=data.filter(d=>d.input.toLowerCase().includes(search)||d.output_text.toLowerCase().includes(search));
+    const total=filtered.length;
+    const page=filtered.slice(tdOffset,tdOffset+tdLimit);
+    const tb=document.getElementById('training-tbody');tb.innerHTML='';
+    if(page.length===0){tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:var(--sp-21)">No data</td></tr>';} else {
+      page.forEach(item=>{
+        const catName=allCategories.find(c=>c.id===item.category_id);
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td title="${esc(item.input)}">${esc(item.input)}</td><td title="${esc(item.output_text)}">${esc(item.output_text)}</td><td>${esc(item.output_format)}</td><td>${item.weight}</td><td>${catName?esc(catName.name):''}</td><td><button class="del-btn" onclick="deleteTrainingData(${item.id})">&#10005;</button></td>`;
+        tb.appendChild(tr);
+      });
+    }
+    const pg=Math.floor(tdOffset/tdLimit)+1;const tp=Math.max(1,Math.ceil(total/tdLimit));
+    document.getElementById('td-pager-info').textContent=pg+' / '+tp+' ('+total+')';
+    document.getElementById('td-prev').disabled=tdOffset===0;
+    document.getElementById('td-next').disabled=tdOffset+tdLimit>=total;
+    refreshStatus();
+  }catch(e){console.error('Load training data error',e)}
+}
+function tdPage(dir){tdOffset=Math.max(0,tdOffset+dir*tdLimit);loadTrainingDataPaged()}
+function kbSearchChanged(){clearTimeout(kbSearchTimer);kbSearchTimer=setTimeout(()=>{tdOffset=0;loadTrainingDataPaged()},250)}
+function toggleKbAdd(){document.getElementById('kb-add-slide').classList.toggle('open');updateCategorySelect()}
+
+function updateCategorySelect(){
+  const sel=document.getElementById('train-category');
+  sel.innerHTML='<option value="">No Category</option>';
+  allCategories.forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.name;sel.appendChild(o)});
+}
+
+async function addTrainingData(){
+  const i=document.getElementById('train-input').value.trim();
+  const o=document.getElementById('train-output').value.trim();
+  const f=document.getElementById('train-format').value;
+  const w=parseFloat(document.getElementById('train-weight').value)||1.0;
+  const catSel=document.getElementById('train-category').value;
+  const catId=catSel?parseInt(catSel):null;
+  if(!i||!o)return;
+  try{await fetch(API+'/api/training/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({input:i,output:o,format:f,weight:w,category_id:catId})});
+  document.getElementById('train-input').value='';document.getElementById('train-output').value='';
+  loadTrainingDataPaged();refreshStatus()}catch(e){console.error('Add training data error',e)}
+}
+
+async function deleteTrainingData(id){try{await fetch(API+'/api/training/data/'+id,{method:'DELETE'});loadTrainingDataPaged();refreshStatus()}catch(e){console.error('Delete training data error',e)}}
+
+// Categories
+async function loadCategories(){
+  try{const r=await fetch(API+'/api/training/categories');allCategories=await r.json()}catch(e){console.error('Load categories error',e)}
+}
+
+async function loadCategoryCards(){
+  await loadCategories();
+  // Also get counts
+  const grid=document.getElementById('cat-grid');grid.innerHTML='';
+  // "All" card
+  const allCard=document.createElement('div');allCard.className='cat-card'+(selectedCategoryId===null?' active':'');
+  allCard.innerHTML='<div class="cat-dot" style="background:var(--text3)"></div><div class="cat-name">All</div>';
+  allCard.onclick=()=>{selectedCategoryId=null;loadCategoryCards();switchSubView('knowledge','kb-all')};
+  grid.appendChild(allCard);
+  allCategories.forEach(c=>{
+    const card=document.createElement('div');card.className='cat-card';
+    card.innerHTML=`<button class="cat-del-btn" onclick="event.stopPropagation();deleteCategory(${c.id})">&#10005;</button><div class="cat-dot" style="background:${esc(c.color)}"></div><div class="cat-name">${esc(c.name)}</div><div class="cat-count">${esc(c.description)}</div>`;
+    card.onclick=()=>{selectedCategoryId=c.id;tdOffset=0;switchSubView('knowledge','kb-all')};
+    grid.appendChild(card);
+  });
+}
+
+async function createCategory(){const n=document.getElementById('new-cat-name').value.trim();const c=document.getElementById('new-cat-color').value;if(!n)return;try{await fetch(API+'/api/training/categories',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,color:c})});document.getElementById('new-cat-name').value='';loadCategories();loadCategoryCards()}catch(e){console.error('Create category error',e)}}
+async function deleteCategory(id){try{await fetch(API+'/api/training/categories/'+id,{method:'DELETE'});if(selectedCategoryId===id)selectedCategoryId=null;loadCategories();loadCategoryCards()}catch(e){console.error('Delete category error',e)}}
+
+// Import functions
+function importTrainingJSON(){const i=prompt('Paste JSON array:\n[{"input":"...","output":"...","weight":1.0}]');if(!i)return;try{const items=JSON.parse(i);fetch(API+'/api/training/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(items)}).then(r=>r.json()).then(d=>{alert('Imported: '+d.imported);loadTrainingDataPaged();refreshStatus()})}catch(e){alert('Invalid JSON: '+e.message)}}
+async function exportTrainingJSON(){try{const r=await fetch(API+'/api/training/export');const d=await r.json();const blob=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='training_data.json';a.click();URL.revokeObjectURL(url)}catch(e){console.error('Export error',e)}}
+async function handleJSONUpload(inp){if(!inp.files.length)return;const fd=new FormData();fd.append('file',inp.files[0]);try{const r=await fetch(API+'/api/upload/json',{method:'POST',body:fd});const d=await r.json();alert('Imported: '+d.imported+' examples');loadTrainingDataPaged();refreshStatus()}catch(e){console.error('Upload JSON error',e)}inp.value=''}
+
+async function saveKB(){const p=document.getElementById('kb-path').value.trim();if(!p)return alert('Enter a path');try{const r=await fetch(API+'/api/knowledge/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:p})});if(r.ok)alert('OK!');else alert('Error: '+(await r.text()))}catch(e){alert('Error: '+e.message)}}
+async function loadKB(){const p=document.getElementById('kb-path').value.trim();if(!p)return alert('Enter a path');try{const r=await fetch(API+'/api/knowledge/load',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:p})});if(r.ok){loadTrainingDataPaged();alert('OK!')}else alert('Error: '+(await r.text()))}catch(e){alert('Error: '+e.message)}}
+
+// Guide — simple markdown to HTML
+function mdToHtml(md){
+  let html='';const lines=md.split('\n');let i=0;
+  while(i<lines.length){
+    const l=lines[i];
+    // code block
+    if(l.startsWith('```')){
+      let code='';i++;
+      while(i<lines.length&&!lines[i].startsWith('```')){code+=lines[i]+'\n';i++}
+      i++;html+='<pre><code>'+code.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</code></pre>';continue
+    }
+    // table
+    if(l.includes('|')&&l.trim().startsWith('|')){
+      let rows=[];
+      while(i<lines.length&&lines[i].includes('|')&&lines[i].trim().startsWith('|')){rows.push(lines[i]);i++}
+      // filter separator rows
+      const data=rows.filter(r=>!/^\|[\s\-:|]+\|$/.test(r.trim()));
+      if(data.length>0){
+        html+='<table>';
+        const hcells=data[0].split('|').filter(c=>c.trim());
+        html+='<tr>'+hcells.map(c=>'<th>'+c.trim()+'</th>').join('')+'</tr>';
+        for(let j=1;j<data.length;j++){
+          const cells=data[j].split('|').filter(c=>c.trim());
+          html+='<tr>'+cells.map(c=>'<td>'+inlineMd(c.trim())+'</td>').join('')+'</tr>';
+        }
+        html+='</table>';
+      }
+      continue
+    }
+    // heading
+    if(l.startsWith('# ')){html+='<h1>'+inlineMd(l.slice(2))+'</h1>';i++;continue}
+    if(l.startsWith('## ')){html+='<h2>'+inlineMd(l.slice(3))+'</h2>';i++;continue}
+    if(l.startsWith('### ')){html+='<h3>'+inlineMd(l.slice(4))+'</h3>';i++;continue}
+    // hr
+    if(/^---+$/.test(l.trim())){html+='<hr>';i++;continue}
+    // list
+    if(/^(\s*)[-*]\s/.test(l)){
+      html+='<ul>';
+      while(i<lines.length&&/^(\s*)[-*]\s/.test(lines[i])){
+        html+='<li>'+inlineMd(lines[i].replace(/^(\s*)[-*]\s/,''))+'</li>';i++
+      }
+      html+='</ul>';continue
+    }
+    if(/^\d+\.\s/.test(l)){
+      html+='<ol>';
+      while(i<lines.length&&/^(\s*)\d+\.\s/.test(lines[i])){
+        html+='<li>'+inlineMd(lines[i].replace(/^(\s*)\d+\.\s/,''))+'</li>';i++
+      }
+      html+='</ol>';continue
+    }
+    // empty
+    if(!l.trim()){i++;continue}
+    // paragraph
+    html+='<p>'+inlineMd(l)+'</p>';i++
+  }
+  return html
+}
+function inlineMd(s){
+  return s.replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/`(.+?)`/g,'<code>$1</code>')
+    .replace(/\[(.+?)\]\((.+?)\)/g,'<a href="$2" target="_blank">$1</a>')
+}
+let guideLoaded=false;
+async function loadGuide(){
+  if(guideLoaded)return;
+  try{const r=await fetch(API+'/api/guide');const md=await r.text();document.getElementById('guide-content').innerHTML=mdToHtml(md);guideLoaded=true}catch(e){document.getElementById('guide-content').innerHTML='<p>Error loading guide</p>'}
+}
+
+// PDF Upload
+const dropZone=document.getElementById('drop-zone');const pdfInput=document.getElementById('pdf-input');
+dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('dragover')});
+dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('dragover');if(e.dataTransfer.files.length)uploadPdf(e.dataTransfer.files[0])});
+pdfInput.addEventListener('change',()=>{if(pdfInput.files.length)uploadPdf(pdfInput.files[0])});
+async function uploadPdf(file){const span=dropZone.querySelector('span');if(span)span.textContent='Uploading...';const fd=new FormData();fd.append('file',file);try{const r=await fetch(API+'/api/pdf/upload',{method:'POST',body:fd});const d=await r.json();if(d.success&&span){span.textContent='+'+d.added+' (total: '+d.total+')';refreshStatus()}else if(span)span.textContent='Upload failed'}catch(e){if(span)span.textContent='Error: '+e.message}setTimeout(()=>{if(span)span.textContent=t('pdf.drop')},3000)}
+
+// Tatoeba TSV
+const tsvDropZone=document.getElementById('tsv-drop-zone');const tsvInput=document.getElementById('tsv-input');
+tsvDropZone.addEventListener('dragover',e=>{e.preventDefault();tsvDropZone.classList.add('dragover')});
+tsvDropZone.addEventListener('dragleave',()=>tsvDropZone.classList.remove('dragover'));
+tsvDropZone.addEventListener('drop',e=>{e.preventDefault();tsvDropZone.classList.remove('dragover');if(e.dataTransfer.files.length)uploadTsv(e.dataTransfer.files[0])});
+tsvInput.addEventListener('change',()=>{if(tsvInput.files.length)uploadTsv(tsvInput.files[0])});
+async function uploadTsv(file){const span=tsvDropZone.querySelector('span');if(span)span.textContent=t('import.importing');const fd=new FormData();fd.append('file',file);try{const r=await fetch(API+'/api/import/tatoeba',{method:'POST',body:fd});const d=await r.json();if(d.success&&span){span.textContent='+'+d.imported+' (skipped: '+d.skipped+', total: '+d.total+')';refreshStatus()}else if(span)span.textContent='Import failed'}catch(e){if(span)span.textContent='Error: '+e.message}setTimeout(()=>{if(span)span.textContent=t('import.drop')},4000)}
+
+// Files
+let currentFilePath=null;
+const BINARY_EXTS=new Set(['db','sqlite','sqlite3','jpg','jpeg','png','gif','bmp','ico','webp','svg','mp3','mp4','avi','mov','mkv','wav','flac','ogg','zip','tar','gz','bz2','xz','7z','rar','exe','dll','so','dylib','o','a','wasm','pdf','doc','docx','xls','xlsx','ppt','pptx','class','pyc','DS_Store','lock']);
+const DB_EXTS=new Set(['db','sqlite','sqlite3']);
+function isDbFile(name){const ext=name.split('.').pop().toLowerCase();return DB_EXTS.has(ext)}
+function isBinaryFile(name){const n=name.toLowerCase();if(n==='.ds_store')return true;const ext=n.split('.').pop();return BINARY_EXTS.has(ext)}
+async function loadFiles(){const path=document.getElementById('files-path').value.trim()||'.';try{const r=await fetch(API+'/api/files?path='+encodeURIComponent(path));const d=await r.json();const list=document.getElementById('file-list');list.innerHTML='';if(path!=='.'&&path!=='/'){const p=document.createElement('div');p.className='file-item';p.innerHTML='<span class="file-icon">..</span><span class="file-name">..</span>';p.onclick=()=>{const parts=path.replace(/\/$/,'').split('/');parts.pop();document.getElementById('files-path').value=parts.join('/')||'.';loadFiles()};list.appendChild(p)}d.entries.forEach(e=>{const fp=path+'/'+e.name;const binary=!e.is_dir&&isBinaryFile(e.name)&&!isDbFile(e.name);const isDb=!e.is_dir&&isDbFile(e.name);const div=document.createElement('div');div.className='file-item'+(currentFilePath===fp?' active':'')+(binary?' disabled':'');const icon=e.is_dir?'&#128193;':isDb?'&#128202;':binary?'&#128683;':'&#128196;';const sz=e.is_dir?'':formatSize(e.size);div.innerHTML=`<span class="file-icon">${icon}</span><span class="file-name">${esc(e.name)}</span><span class="file-size">${sz}</span><span class="file-date">${esc(e.modified)}</span>${!binary?`<span class="file-actions"><button class="file-act-btn" onclick="event.stopPropagation();renameFileUI('${esc(fp)}')" title="Rename">R</button><button class="file-act-btn" onclick="event.stopPropagation();deleteFileUI('${esc(fp)}')" title="Delete">&#10005;</button></span>`:''}`;if(!binary){div.onclick=()=>{if(e.is_dir){document.getElementById('files-path').value=fp;loadFiles()}else if(isDb){openDbFile(fp)}else{openFile(fp)}}}list.appendChild(div)})}catch(e){console.error('Load files error',e)}}
+function formatSize(b){if(b<1024)return b+' B';if(b<1024*1024)return(b/1024).toFixed(1)+' KB';return(b/1024/1024).toFixed(1)+' MB'}
+function showTextEditor(){document.getElementById('text-editor-panel').style.display='';document.getElementById('db-viewer-panel').style.display='none'}
+function showDbViewer(){document.getElementById('text-editor-panel').style.display='none';document.getElementById('db-viewer-panel').style.display='flex'}
+async function openFile(path){showTextEditor();try{const r=await fetch(API+'/api/files/read?path='+encodeURIComponent(path));const d=await r.json();currentFilePath=path;document.getElementById('editor-path').textContent=path;document.getElementById('editor-area').value=d.content;loadFiles()}catch(e){console.error('Open file error',e)}}
+async function saveFile(){if(!currentFilePath)return;try{await fetch(API+'/api/files/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:currentFilePath,content:document.getElementById('editor-area').value})})}catch(e){console.error('Save file error',e)}}
+function createFolder(){const b=document.getElementById('files-path').value.trim()||'.';const n=prompt('Folder name:');if(!n)return;fetch(API+'/api/files/mkdir',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:b+'/'+n})}).then(()=>loadFiles())}
+function createFile(){const b=document.getElementById('files-path').value.trim()||'.';const n=prompt('File name:');if(!n)return;const p=b+'/'+n;fetch(API+'/api/files/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:p,content:''})}).then(()=>{loadFiles();openFile(p)})}
+function deleteFileUI(path){if(!confirm('Delete '+path+'?'))return;fetch(API+'/api/files?path='+encodeURIComponent(path),{method:'DELETE'}).then(()=>{if(currentFilePath===path){currentFilePath=null;document.getElementById('editor-path').textContent='No file selected';document.getElementById('editor-area').value=''}loadFiles()})}
+function renameFileUI(path){const n=prompt('New name:',path.split('/').pop());if(!n)return;const parts=path.split('/');parts.pop();fetch(API+'/api/files/rename',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({from:path,to:parts.join('/')+'/'+n})}).then(()=>loadFiles())}
+
+// SQLite DB Viewer
+let dbFilePath=null;let dbCurrentTable=null;let dbOffset=0;const dbLimit=100;let dbColumns=[];let dbOriginalRows=[];let dbModifiedCells={};
+async function openDbFile(path){showDbViewer();dbFilePath=path;dbOffset=0;dbModifiedCells={};currentFilePath=path;document.getElementById('db-path').textContent=path;try{const r=await fetch(API+'/api/files/db/tables?path='+encodeURIComponent(path));const d=await r.json();const sel=document.getElementById('db-table-select');sel.innerHTML='';if(d.tables.length===0){sel.innerHTML='<option>No tables</option>';document.getElementById('db-table-wrap').innerHTML='<div style="color:var(--text3);padding:var(--sp-21);text-align:center">Empty database</div>';return}d.tables.forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;sel.appendChild(o)});dbCurrentTable=d.tables[0];loadDbTable();loadFiles()}catch(e){console.error('Open DB error',e)}}
+async function loadDbTable(){if(!dbFilePath)return;dbCurrentTable=document.getElementById('db-table-select').value;dbModifiedCells={};try{const r=await fetch(API+'/api/files/db/query?path='+encodeURIComponent(dbFilePath)+'&table='+encodeURIComponent(dbCurrentTable)+'&limit='+dbLimit+'&offset='+dbOffset);const d=await r.json();dbColumns=d.columns;dbOriginalRows=d.rows;const wrap=document.getElementById('db-table-wrap');const tbl=document.createElement('table');tbl.className='db-table';const thead=document.createElement('thead');const hrow=document.createElement('tr');hrow.innerHTML='<th>#</th>';d.columns.forEach(c=>{const th=document.createElement('th');th.textContent=c.name;th.title=c.type;hrow.appendChild(th)});thead.appendChild(hrow);tbl.appendChild(thead);const tbody=document.createElement('tbody');d.rows.forEach((row,ri)=>{const tr=document.createElement('tr');const numTd=document.createElement('td');numTd.textContent=dbOffset+ri+1;numTd.style.cssText='color:var(--text3);font-size:10px;width:36px;text-align:right';tr.appendChild(numTd);row.forEach((val,ci)=>{const td=document.createElement('td');td.contentEditable='true';td.textContent=val===null?'NULL':String(val);td.title=d.columns[ci].name+' ('+d.columns[ci].type+')';if(val===null)td.style.color='var(--text3)';td.addEventListener('input',()=>{const key=ri+','+ci;const orig=dbOriginalRows[ri][ci];const cur=td.textContent;if(String(orig===null?'NULL':orig)===cur){delete dbModifiedCells[key];td.classList.remove('modified')}else{dbModifiedCells[key]={row:ri,col:ci,value:cur};td.classList.add('modified')}});tr.appendChild(td)});tbody.appendChild(tr)});tbl.appendChild(tbody);wrap.innerHTML='';wrap.appendChild(tbl);const page=Math.floor(dbOffset/dbLimit)+1;const tp=Math.max(1,Math.ceil(d.total/dbLimit));document.getElementById('db-pager-info').textContent=page+' / '+tp+' ('+d.total+')';document.getElementById('db-prev').disabled=dbOffset===0;document.getElementById('db-next').disabled=dbOffset+dbLimit>=d.total}catch(e){console.error('Load DB table error',e)}}
+function dbPage(dir){dbOffset=Math.max(0,dbOffset+dir*dbLimit);loadDbTable()}
+async function saveDbChanges(){const keys=Object.keys(dbModifiedCells);if(keys.length===0)return;let ok=0;let fail=0;for(const k of keys){const m=dbModifiedCells[k];const row=dbOriginalRows[m.row];const pkCol=dbColumns[0].name;const pkVal=row[0];const colName=dbColumns[m.col].name;const newVal=m.value==='NULL'?'NULL':"'"+m.value.replace(/'/g,"''")+"'";const sql=`UPDATE "${dbCurrentTable}" SET "${colName}"=${newVal} WHERE "${pkCol}"=${typeof pkVal==='number'?pkVal:"'"+String(pkVal).replace(/'/g,"''")+"'"} LIMIT 1`;try{const r=await fetch(API+'/api/files/db/execute',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:dbFilePath,sql:sql})});const d=await r.json();if(d.success)ok++;else fail++}catch(e){fail++}}dbModifiedCells={};loadDbTable();if(fail>0)alert('Saved: '+ok+', Failed: '+fail)}
+function discardDbChanges(){dbModifiedCells={};loadDbTable()}
+
+// VectorDB
+let selectedCollectionId=null;
+async function loadCollections(){try{const r=await fetch(API+'/api/vectors/collections');const cols=await r.json();const list=document.getElementById('col-list');list.innerHTML='';cols.forEach(c=>{const d=document.createElement('div');d.className='col-item'+(selectedCollectionId===c.id?' active':'');d.innerHTML=`<span class="col-name">${esc(c.name)}</span><button class="col-del" onclick="event.stopPropagation();deleteCollection(${c.id})">&#10005;</button>`;d.onclick=()=>selectCollection(c.id);list.appendChild(d)})}catch(e){console.error('Load collections error',e)}}
+function selectCollection(id){selectedCollectionId=id;loadCollections();loadVectorEntries()}
+async function createCollection(){const n=document.getElementById('new-col-name').value.trim();const d=document.getElementById('new-col-desc').value.trim();if(!n)return;try{await fetch(API+'/api/vectors/collections',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,description:d})});document.getElementById('new-col-name').value='';document.getElementById('new-col-desc').value='';loadCollections()}catch(e){console.error('Create collection error',e)}}
+async function deleteCollection(id){try{await fetch(API+'/api/vectors/collections/'+id,{method:'DELETE'});if(selectedCollectionId===id)selectedCollectionId=null;loadCollections();document.getElementById('vec-entries').innerHTML=''}catch(e){console.error('Delete collection error',e)}}
+async function loadVectorEntries(){if(!selectedCollectionId){document.getElementById('vec-entries').innerHTML='<div style="color:var(--text3);font-size:12px;padding:var(--sp-21);text-align:center">Select a collection</div>';return}try{const r=await fetch(API+'/api/vectors/entries?collection_id='+selectedCollectionId);const entries=await r.json();const div=document.getElementById('vec-entries');div.innerHTML='';if(entries.length===0){div.innerHTML='<div style="color:var(--text3);font-size:12px;padding:var(--sp-21);text-align:center">No entries</div>';return}const tbl=document.createElement('table');tbl.className='t-table';tbl.innerHTML='<thead><tr><th>Content</th><th>Metadata</th><th>Created</th><th></th></tr></thead>';const tb=document.createElement('tbody');entries.forEach(e=>{const tr=document.createElement('tr');tr.innerHTML=`<td title="${esc(e.content)}">${esc(e.content.substring(0,80))}</td><td title="${esc(e.metadata_json)}">${esc(e.metadata_json.substring(0,40))}</td><td style="font-size:10px;color:var(--text3)">${esc(e.created_at)}</td><td><button class="del-btn" onclick="deleteVectorEntry(${e.id})">&#10005;</button></td>`;tb.appendChild(tr)});tbl.appendChild(tb);div.appendChild(tbl)}catch(e){console.error('Load entries error',e)}}
+async function addVectorEntry(){if(!selectedCollectionId)return alert('Select a collection first');const c=document.getElementById('vec-content').value.trim();const m=document.getElementById('vec-metadata').value.trim()||'{}';if(!c)return;try{await fetch(API+'/api/vectors/entries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({collection_id:selectedCollectionId,content:c,metadata_json:m})});document.getElementById('vec-content').value='';document.getElementById('vec-metadata').value='';loadVectorEntries()}catch(e){console.error('Add entry error',e)}}
+async function deleteVectorEntry(id){try{await fetch(API+'/api/vectors/entries/'+id,{method:'DELETE'});loadVectorEntries()}catch(e){console.error('Delete entry error',e)}}
+async function vectorSearch(){if(!selectedCollectionId)return alert('Select a collection first');const q=document.getElementById('vec-search-input').value.trim();if(!q)return;try{const r=await fetch(API+'/api/vectors/search',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({collection_id:selectedCollectionId,query:q,top_k:5})});const res=await r.json();const div=document.getElementById('vec-results');div.style.display='';div.innerHTML='';if(res.length===0){div.innerHTML='<div style="color:var(--text3);font-size:12px;padding:var(--sp-13)">No results</div>';return}res.forEach(r=>{const item=document.createElement('div');item.className='vecdb-result-item';item.innerHTML=`<div class="score">Score: ${r.score.toFixed(4)}</div><div class="content">${esc(r.content.substring(0,200))}</div><div class="meta">${esc(r.metadata_json)}</div>`;div.appendChild(item)})}catch(e){console.error('Search error',e)}}
+
+// Bots
+let botAutoRefreshTimer=null;let activeRunId=null;let activeRunBotId=null;
+
+function toggleBotForm(){document.getElementById('bot-form').classList.toggle('open');updateBotFormFields()}
+function updateBotFormFields(){
+  const bt=document.getElementById('bot-type').value;
+  document.querySelectorAll('.crawler-field').forEach(el=>el.classList.toggle('visible',bt==='crawler'));
+  document.querySelectorAll('.processor-field').forEach(el=>el.classList.toggle('visible',bt==='processor'));
+}
+
+function startBotAutoRefresh(){
+  stopBotAutoRefresh();
+  botAutoRefreshTimer=setInterval(async()=>{
+    try{const r=await fetch(API+'/api/bots');const bots=await r.json();
+    const anyRunning=bots.some(b=>b.running);
+    if(!anyRunning){stopBotAutoRefresh()}
+    renderBotList(bots)}catch(e){stopBotAutoRefresh()}
+  },3000);
+}
+function stopBotAutoRefresh(){if(botAutoRefreshTimer){clearInterval(botAutoRefreshTimer);botAutoRefreshTimer=null}}
+
+function renderBotList(bots){
+  const list=document.getElementById('bot-list');
+  list.innerHTML='';
+  if(bots.length===0){list.innerHTML='<div style="color:var(--text3);font-size:12px">No bots yet</div>';return}
+  let anyRunning=false;
+  bots.forEach(b=>{
+    const sc=b.running?'running':'stopped';
+    if(b.running)anyRunning=true;
+    const tl=b.bot_type==='crawler'?t('bot.crawler'):t('bot.processor');
+    const c=b.config;
+    let cfgHtml='';
+    if(b.bot_type==='crawler'){
+      cfgHtml=`<div class="bot-card-config">`
+        +(c.url?`<span><span class="cfg-label">URL</span> <span class="cfg-val">${esc(c.url.length>50?c.url.substring(0,50)+'...':c.url)}</span></span>`:'')+
+        `<span><span class="cfg-label">Mode</span> <span class="cfg-val">${esc(c.mode)}</span></span>`+
+        `<span><span class="cfg-label">Depth</span> <span class="cfg-val">${c.max_depth}</span></span>`+
+        `<span><span class="cfg-label">Rate</span> <span class="cfg-val">${c.rate_limit_ms}ms</span></span>`+
+        `</div>`;
+    } else {
+      cfgHtml=`<div class="bot-card-config">`
+        +(c.url?`<span><span class="cfg-label">URL</span> <span class="cfg-val">${esc(c.url.length>50?c.url.substring(0,50)+'...':c.url)}</span></span>`:'')+
+        `<span><span class="cfg-label">Strategy</span> <span class="cfg-val">${esc(c.strategy)}</span></span>`+
+        `<span><span class="cfg-label">Min Length</span> <span class="cfg-val">${c.min_length}</span></span>`+
+        `</div>`;
+    }
+    const d=document.createElement('div');d.className='bot-card';
+    d.innerHTML=`<div class="bot-card-header"><div><span class="bot-status-led ${sc}"></span><span class="bot-card-name">${esc(b.name)}</span></div><span class="bot-card-type">${tl}</span></div>${cfgHtml}<div class="bot-card-actions">${b.running?`<button class="btn btn-danger btn-sm" onclick="stopBot(${b.id})">${t('bot.stop')}</button>`:`<button class="btn btn-success btn-sm" onclick="startBot(${b.id})">${t('bot.start')}</button>`}<button class="btn btn-secondary btn-sm" onclick="showBotRuns(${b.id})">Runs</button><button class="btn btn-danger btn-sm" onclick="deleteBot(${b.id})">&#10005;</button></div>`;
+    list.appendChild(d);
+  });
+  if(anyRunning&&!botAutoRefreshTimer)startBotAutoRefresh();
+}
+
+async function loadBots(){try{const r=await fetch(API+'/api/bots');const bots=await r.json();renderBotList(bots)}catch(e){console.error('Load bots error',e)}}
+
+async function createBot(){
+  const n=document.getElementById('bot-name').value.trim();
+  const bt=document.getElementById('bot-type').value;
+  const u=document.getElementById('bot-url').value.trim();
+  if(!n)return;
+  const cfg={url:u};
+  if(bt==='crawler'){
+    cfg.mode=document.getElementById('bot-mode').value;
+    cfg.max_depth=parseInt(document.getElementById('bot-max-depth').value)||2;
+    cfg.rate_limit_ms=parseInt(document.getElementById('bot-rate-limit').value)||1000;
+  } else {
+    cfg.strategy=document.getElementById('bot-strategy').value;
+    cfg.min_length=parseInt(document.getElementById('bot-min-length').value)||20;
+  }
+  try{await fetch(API+'/api/bots',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,bot_type:bt,config:cfg})});
+  document.getElementById('bot-name').value='';document.getElementById('bot-url').value='';
+  toggleBotForm();loadBots()}catch(e){console.error('Create bot error',e)}
+}
+
+async function startBot(id){try{await fetch(API+'/api/bots/'+id+'/start',{method:'POST'});startBotAutoRefresh();loadBots()}catch(e){console.error('Start bot error',e)}}
+async function stopBot(id){try{await fetch(API+'/api/bots/'+id+'/stop',{method:'POST'});loadBots()}catch(e){console.error('Stop bot error',e)}}
+async function deleteBot(id){try{await fetch(API+'/api/bots/'+id,{method:'DELETE'});loadBots()}catch(e){console.error('Delete bot error',e)}}
+
+function calcDuration(start,end){
+  if(!start||!end)return'';
+  try{const s=new Date(start+'Z').getTime();const e=new Date(end+'Z').getTime();const d=Math.max(0,e-s);
+  if(d<1000)return d+'ms';if(d<60000)return(d/1000).toFixed(1)+'s';return Math.floor(d/60000)+'m '+(Math.floor(d/1000)%60)+'s'}catch(x){return''}
+}
+
+async function showBotRuns(bid){
+  const s=document.getElementById('bot-runs-section');s.style.display='';
+  document.getElementById('run-data-panel').innerHTML='';activeRunId=null;activeRunBotId=bid;
+  try{const r=await fetch(API+'/api/bots/'+bid+'/runs');const runs=await r.json();
+  const list=document.getElementById('bot-runs-list');list.innerHTML='';
+  if(runs.length===0){list.innerHTML='<div style="color:var(--text3);font-size:11px">No runs yet</div>';return}
+  runs.forEach(run=>{
+    const dur=calcDuration(run.started_at,run.finished_at);
+    const d=document.createElement('div');d.className='run-item';d.setAttribute('data-run-id',run.id);
+    d.onclick=()=>loadRunData(bid,run.id,d);
+    d.innerHTML=`<span class="run-status ${run.status}">${run.status}</span>`+
+      `<span style="flex:1;color:var(--text2)">${run.started_at}${run.finished_at?' &rarr; '+run.finished_at:''}</span>`+
+      `<div class="run-stats">`+
+        `<span class="stat"><span class="cfg-label">found</span> <span class="stat-val">${run.items_found}</span></span>`+
+        `<span class="stat"><span class="cfg-label">added</span> <span class="stat-val">${run.items_added}</span></span>`+
+      `</div>`+
+      (dur?`<span class="run-duration">${dur}</span>`:'')+
+      (run.error_msg?`<div class="run-error">${esc(run.error_msg)}</div>`:'');
+    list.appendChild(d);
+  })}catch(e){console.error('Load runs error',e)}
+}
+
+async function loadRunData(botId,runId,el){
+  // Toggle active state
+  document.querySelectorAll('.run-item.active').forEach(r=>r.classList.remove('active'));
+  if(activeRunId===runId){activeRunId=null;document.getElementById('run-data-panel').innerHTML='';return}
+  activeRunId=runId;
+  if(el)el.classList.add('active');
+  const panel=document.getElementById('run-data-panel');
+  panel.innerHTML='<div style="color:var(--text3);font-size:11px;padding:var(--sp-8)">Loading...</div>';
+  try{const r=await fetch(API+'/api/bots/'+botId+'/runs/'+runId+'/data');const data=await r.json();
+  if(data.length===0){panel.innerHTML='<div class="run-data-panel"><div style="color:var(--text3);font-size:11px">No data for this run</div></div>';return}
+  let html='<div class="run-data-panel"><div class="run-data-header"><div class="section-title">Crawled Data ('+data.length+')</div></div>';
+  data.forEach(item=>{
+    const preview=item.content.length>150?item.content.substring(0,150)+'...':item.content;
+    html+=`<div class="run-data-item">`+
+      (item.url?`<div class="rdi-url">${esc(item.url)}</div>`:'')+
+      (item.title?`<div class="rdi-title">${esc(item.title)}</div>`:'')+
+      `<div class="rdi-preview">${esc(preview)}</div>`+
+      `<div class="rdi-meta"><span class="rdi-badge ${item.status}">${item.status}</span><span style="font-size:10px;color:var(--text3)">${item.created_at}</span></div>`+
+      `</div>`;
+  });
+  html+='</div>';panel.innerHTML=html}catch(e){panel.innerHTML='<div class="run-data-panel"><div style="color:var(--danger);font-size:11px">Failed to load run data</div></div>';console.error('Load run data error',e)}
+}
+
+// Data Review
+async function loadPendingData(){try{const r=await fetch(API+'/api/data/pending');const data=await r.json();const list=document.getElementById('pending-data-list');list.innerHTML='';if(data.length===0){list.innerHTML='<div style="color:var(--text3);font-size:12px">No pending data</div>';return}data.forEach(item=>{const d=document.createElement('div');d.className='data-card';d.innerHTML=`${item.url?`<div class="data-card-url">${esc(item.url)}</div>`:''}${item.title?`<div class="data-card-title">${esc(item.title)}</div>`:''}<div class="data-card-preview">${esc(item.content.substring(0,200))}${item.content.length>200?'...':''}</div><div class="data-card-actions"><button class="btn btn-success btn-sm" onclick="approveData(${item.id})">${t('data.approve')}</button><button class="btn btn-danger btn-sm" onclick="rejectData(${item.id})">${t('data.reject')}</button></div>`;list.appendChild(d)})}catch(e){console.error('Load pending error',e)}}
+async function loadApprovedData(){try{const r=await fetch(API+'/api/data/approved');const data=await r.json();const list=document.getElementById('approved-data-list');list.innerHTML='';if(data.length===0){list.innerHTML='<div style="color:var(--text3);font-size:12px">No approved data</div>';return}data.slice(0,50).forEach(item=>{const d=document.createElement('div');d.className='data-card';const kb=item.added_to_kb?'<span style="color:var(--success);font-size:10px;font-weight:600">IN KB</span>':'';d.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center"><div class="data-card-title">${esc(item.input.substring(0,60))}</div>${kb}</div><div class="data-card-preview">${esc(item.output.substring(0,150))}</div>`;list.appendChild(d)})}catch(e){console.error('Load approved error',e)}}
+async function approveData(id){try{await fetch(API+'/api/data/'+id+'/approve',{method:'POST'});loadPendingData();loadApprovedData()}catch(e){console.error('Approve error',e)}}
+async function rejectData(id){try{await fetch(API+'/api/data/'+id+'/reject',{method:'POST'});loadPendingData()}catch(e){console.error('Reject error',e)}}
+async function approveAllData(){try{await fetch(API+'/api/data/approve-all',{method:'POST'});loadPendingData();loadApprovedData()}catch(e){console.error('Approve all error',e)}}
+async function addToKB(){try{const r=await fetch(API+'/api/data/add-to-kb',{method:'POST'});const d=await r.json();if(d.success){loadTrainingDataPaged();loadApprovedData()}}catch(e){console.error('Add to KB error',e)}}
+function toggleApproved(){document.getElementById('review-approved').classList.toggle('open')}
+
+// Console
+let consoleWs=null;let consoleCmdHistory=[];let consoleCmdIndex=-1;const CONSOLE_MAX_LINES=1000;
+function initConsole(){
+  const proto=location.protocol==='https:'?'wss:':'ws:';
+  const consolePort=parseInt(location.port||'80')+1;
+  const url=proto+'//'+location.hostname+':'+consolePort+'/ws/console';
+  consoleWs=new WebSocket(url);
+  consoleWs.onopen=()=>{document.getElementById('console-dot').classList.remove('disconnected')};
+  consoleWs.onclose=()=>{document.getElementById('console-dot').classList.add('disconnected');setTimeout(initConsole,2000)};
+  consoleWs.onerror=()=>{};
+  consoleWs.onmessage=(ev)=>{
+    try{const data=JSON.parse(ev.data);if(data.type==='history'){data.entries.forEach(e=>appendConsoleLine(e))}else if(data.type==='log'){const e=data.entry;if(e.message==='__clear__'){document.getElementById('console-output').innerHTML='';return}if(e.message==='__reset__'){setTimeout(()=>location.reload(true),2000);return}appendConsoleLine(e)}}catch(err){}
+  };
+}
+function appendConsoleLine(entry){const out=document.getElementById('console-output');const div=document.createElement('div');div.className='console-line';div.innerHTML='<span class="ts">'+esc(entry.timestamp)+'</span><span class="lvl '+esc(entry.level)+'">'+esc(entry.level)+'</span><span class="msg">'+esc(entry.message)+'</span>';out.appendChild(div);while(out.children.length>CONSOLE_MAX_LINES)out.removeChild(out.firstChild);out.scrollTop=out.scrollHeight}
+function consoleKeyDown(event){if(event.key==='Enter'){const inp=document.getElementById('console-input');const cmd=inp.value.trim();if(!cmd)return;if(consoleCmdHistory.length===0||consoleCmdHistory[consoleCmdHistory.length-1]!==cmd)consoleCmdHistory.push(cmd);consoleCmdIndex=consoleCmdHistory.length;inp.value='';if(consoleWs&&consoleWs.readyState===WebSocket.OPEN)consoleWs.send(JSON.stringify({type:'cmd',command:cmd}))}else if(event.key==='ArrowUp'){event.preventDefault();if(consoleCmdIndex>0){consoleCmdIndex--;document.getElementById('console-input').value=consoleCmdHistory[consoleCmdIndex]}}else if(event.key==='ArrowDown'){event.preventDefault();if(consoleCmdIndex<consoleCmdHistory.length-1){consoleCmdIndex++;document.getElementById('console-input').value=consoleCmdHistory[consoleCmdIndex]}else{consoleCmdIndex=consoleCmdHistory.length;document.getElementById('console-input').value=''}}}
+function consoleClear(){if(consoleWs&&consoleWs.readyState===WebSocket.OPEN)consoleWs.send(JSON.stringify({type:'cmd',command:'clear'}));document.getElementById('console-output').innerHTML=''}
+function consoleToggleSize(){const panel=document.getElementById('console-panel');panel.classList.toggle('minimized');document.getElementById('console-toggle-btn').textContent=panel.classList.contains('minimized')?'\u25B2':'_'}
+(function(){const header=document.getElementById('console-header');const panel=document.getElementById('console-panel');let dragging=false,startY=0,startH=0;header.addEventListener('mousedown',(e)=>{if(e.target.tagName==='BUTTON')return;dragging=true;startY=e.clientY;startH=panel.offsetHeight;document.body.style.cursor='ns-resize';document.body.style.userSelect='none'});document.addEventListener('mousemove',(e)=>{if(!dragging)return;const newH=startH+(startY-e.clientY);const maxH=window.innerHeight*0.5;panel.style.height=Math.max(36,Math.min(maxH,newH))+'px';panel.classList.remove('minimized');document.getElementById('console-toggle-btn').textContent='_'});document.addEventListener('mouseup',()=>{if(dragging){dragging=false;document.body.style.cursor='';document.body.style.userSelect=''}})})();
+
+// Init
+(async function init(){await loadSettings();refreshStatus();loadChats();loadCategories();initConsole();document.getElementById('console-panel').classList.add('minimized');document.getElementById('console-toggle-btn').textContent='\u25B2'})();
+</script>
+</body>
+</html>

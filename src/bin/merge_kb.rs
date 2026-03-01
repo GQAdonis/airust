@@ -21,12 +21,10 @@ fn main() {
     let mut json_files = Vec::new();
     match fs::read_dir(&knowledge_dir) {
         Ok(entries) => {
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    let path = entry.path();
-                    if path.is_file() && path.extension().map_or(false, |ext| ext == "json") {
-                        json_files.push(path);
-                    }
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() && path.extension().is_some_and(|ext| ext == "json") {
+                    json_files.push(path);
                 }
             }
         }
@@ -44,7 +42,7 @@ fn main() {
 
     println!("{} JSON files found:", json_files.len());
     for file in &json_files {
-        println!("  - {}", file.file_name().unwrap().to_string_lossy());
+        println!("  - {}", file.file_name().unwrap_or_default().to_string_lossy());
     }
 
     // Create target Knowledge Base
@@ -57,7 +55,7 @@ fn main() {
                 let example_count = kb.get_examples().len();
                 println!(
                     "File {} loaded: {} examples",
-                    file.file_name().unwrap().to_string_lossy(),
+                    file.file_name().unwrap_or_default().to_string_lossy(),
                     example_count
                 );
                 merged_kb.merge(&kb);
@@ -65,7 +63,7 @@ fn main() {
             Err(e) => {
                 println!(
                     "Warning: Could not load file {}: {}",
-                    file.file_name().unwrap().to_string_lossy(),
+                    file.file_name().unwrap_or_default().to_string_lossy(),
                     e
                 );
             }
@@ -80,7 +78,7 @@ fn main() {
     // Ask if the standard examples should be included
     println!("\nDo you want to add the standard examples (embedded data)? (y/n)");
     let mut input = String::new();
-    std::io::stdin().read_line(&mut input).unwrap();
+    let _ = std::io::stdin().read_line(&mut input);
 
     if input.trim().to_lowercase() == "y" {
         merged_kb.merge_embedded();

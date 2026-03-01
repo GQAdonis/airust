@@ -25,6 +25,18 @@ pub enum AgentError {
     /// Interner Fehler
     #[error("Interner Fehler: {0}")]
     InternalError(String),
+
+    /// I/O-Fehler beim Lesen oder Schreiben von Dateien
+    #[error("I/O-Fehler: {0}")]
+    IoError(#[from] std::io::Error),
+
+    /// Serialisierungs-/Deserialisierungsfehler
+    #[error("Serialisierungsfehler: {0}")]
+    SerializationError(#[from] serde_json::Error),
+
+    /// Index außerhalb des gültigen Bereichs
+    #[error("Index {0} außerhalb des gültigen Bereichs")]
+    IndexOutOfBounds(usize),
 }
 
 /// Repräsentiert die möglichen Antwortformate eines Agenten
@@ -51,7 +63,7 @@ impl fmt::Display for ResponseFormat {
         match self {
             ResponseFormat::Text(text) => write!(f, "{}", text),
             ResponseFormat::Markdown(md) => write!(f, "{}", md),
-            ResponseFormat::Json(json) => write!(f, "{}", json.to_string()),
+            ResponseFormat::Json(json) => write!(f, "{}", json),
         }
     }
 }
@@ -195,12 +207,15 @@ pub trait Agent {
 
 /// Trait für Agenten, die mit Beispielen trainiert werden können
 pub trait TrainableAgent: Agent {
-    /// Trainiert den Agenten mit einer Liste von Beispielen
+    /// Trainiert den Agenten mit einer Liste von Beispielen (ersetzt alle vorherigen Daten)
     fn train(&mut self, data: &[TrainingExample]);
 
-    /// Trainiert mit einem einzelnen Beispiel
+    /// Fügt Beispiele hinzu ohne vorherige Daten zu ersetzen
+    fn append(&mut self, data: &[TrainingExample]);
+
+    /// Fügt ein einzelnes Beispiel hinzu (ohne vorherige Daten zu ersetzen)
     fn train_single(&mut self, example: &TrainingExample) {
-        self.train(&[example.clone()]);
+        self.append(std::slice::from_ref(example));
     }
 
     /// Hilfsmethode für das Training mit Legacy-Daten
@@ -218,7 +233,7 @@ pub trait TrainableAgent: Agent {
         self.train(&converted);
     }
 
-    /// Fügt ein neues Trainingsbeispiel hinzu und trainiert den Agenten
+    /// Fügt ein neues Trainingsbeispiel hinzu (ohne vorherige Daten zu ersetzen)
     fn add_example(&mut self, input: &str, output: impl Into<ResponseFormat>, weight: f32) {
         let example = TrainingExample {
             input: input.to_string(),
@@ -322,17 +337,14 @@ pub mod text_utils {
         }
 
         let a_chars: Vec<char> = a.chars().collect();
-        let _a_len = a_chars.len(); // Markiere als intentional ungenutzt
         let b_chars: Vec<char> = b.chars().collect();
         let b_len = b_chars.len();
 
         let mut cache: Vec<usize> = (0..=b_len).collect();
-        let mut _distance: usize; // Markiere als optional
         let mut distances = vec![0; b_len + 1];
 
         for (i, a_char) in a_chars.iter().enumerate() {
             distances[0] = i + 1;
-            let _previous_distance = distances[0]; // Entferne unnötige Zuweisung
 
             for (j, b_char) in b_chars.iter().enumerate() {
                 let cost = if a_char == b_char { 0 } else { 1 };
@@ -393,6 +405,8 @@ pub mod text_utils {
 mod tests {
     use super::*;
 
+    // === ResponseFormat Tests ===
+
     #[test]
     fn test_response_format_conversion() {
         let text = ResponseFormat::Text("Hello".to_string());
@@ -403,6 +417,51 @@ mod tests {
         let string: String = json.into();
         assert_eq!(string, r#"{"key":"value"}"#);
     }
+
+    #[test]
+    fn test_response_format_display_text() {
+        let text = ResponseFormat::Text("Hello World".to_string());
+        assert_eq!(format!("{}", text), "Hello World");
+    }
+
+    #[test]
+    fn test_response_format_display_markdown() {
+        let md = ResponseFormat::Markdown("# Title".to_string());
+        assert_eq!(format!("{}", md), "# Title");
+    }
+
+    #[test]
+    fn test_response_format_display_json() {
+        let json = ResponseFormat::Json(serde_json::json!({"a": 1}));
+        assert_eq!(format!("{}", json), r#"{"a":1}"#);
+    }
+
+    #[test]
+    fn test_response_format_default() {
+        let default = ResponseFormat::default();
+        assert_eq!(String::from(default), "");
+    }
+
+    #[test]
+    fn test_response_format_from_string() {
+        let rf: ResponseFormat = "hello".to_string().into();
+        assert_eq!(String::from(rf), "hello");
+    }
+
+    #[test]
+    fn test_response_format_from_str() {
+        let rf: ResponseFormat = "world".into();
+        assert_eq!(String::from(rf), "world");
+    }
+
+    #[test]
+    fn test_response_format_markdown_into_string() {
+        let md = ResponseFormat::Markdown("**bold**".to_string());
+        let s: String = md.into();
+        assert_eq!(s, "**bold**");
+    }
+
+    // === LegacyTrainingExample Tests ===
 
     #[test]
     fn test_legacy_conversion() {
@@ -419,6 +478,42 @@ mod tests {
     }
 
     #[test]
+    fn test_legacy_conversion_default_weight() {
+        let legacy = LegacyTrainingExample {
+            input: "q".to_string(),
+            output: "a".to_string(),
+            weight: default_weight(),
+        };
+        let modern: TrainingExample = legacy.into();
+        assert_eq!(modern.weight, 1.0);
+        assert!(modern.metadata.is_none());
+    }
+
+    // === PredictionResult Tests ===
+
+    #[test]
+    fn test_prediction_result_from_response_format() {
+        let rf = ResponseFormat::Text("answer".to_string());
+        let pr: PredictionResult = rf.into();
+        assert_eq!(pr.confidence, 1.0);
+        assert!(pr.metadata.is_none());
+        assert_eq!(String::from(pr.response), "answer");
+    }
+
+    #[test]
+    fn test_prediction_result_into_response_format() {
+        let pr = PredictionResult {
+            response: ResponseFormat::Text("result".to_string()),
+            confidence: 0.8,
+            metadata: None,
+        };
+        let rf: ResponseFormat = pr.into();
+        assert_eq!(String::from(rf), "result");
+    }
+
+    // === Tokenize Tests ===
+
+    #[test]
     fn test_text_utils() {
         let tokens = text_utils::tokenize("Hello, world! How are you?");
         assert_eq!(tokens, vec!["hello", "world", "how", "are", "you"]);
@@ -433,5 +528,227 @@ mod tests {
 
         let similarity = text_utils::jaccard_similarity("hello world", "world hello");
         assert_eq!(similarity, 1.0);
+    }
+
+    #[test]
+    fn test_tokenize_empty() {
+        assert!(text_utils::tokenize("").is_empty());
+    }
+
+    #[test]
+    fn test_tokenize_only_punctuation() {
+        assert!(text_utils::tokenize("!@#$%^&*()").is_empty());
+    }
+
+    #[test]
+    fn test_tokenize_unicode() {
+        let tokens = text_utils::tokenize("café über straße");
+        assert_eq!(tokens, vec!["café", "über", "straße"]);
+    }
+
+    #[test]
+    fn test_tokenize_numbers_stripped() {
+        let tokens = text_utils::tokenize("hello 123 world");
+        assert_eq!(tokens, vec!["hello", "world"]);
+    }
+
+    #[test]
+    fn test_tokenize_extra_whitespace() {
+        let tokens = text_utils::tokenize("  hello   world  ");
+        assert_eq!(tokens, vec!["hello", "world"]);
+    }
+
+    // === unique_terms Tests ===
+
+    #[test]
+    fn test_unique_terms_empty() {
+        assert!(text_utils::unique_terms("").is_empty());
+    }
+
+    #[test]
+    fn test_unique_terms_all_same() {
+        let unique = text_utils::unique_terms("hello hello hello");
+        assert_eq!(unique.len(), 1);
+        assert!(unique.contains("hello"));
+    }
+
+    // === remove_stopwords Tests ===
+
+    #[test]
+    fn test_remove_stopwords_english() {
+        let tokens = vec!["the", "cat", "is", "on", "a", "mat"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+        let filtered = text_utils::remove_stopwords(tokens, "en");
+        assert_eq!(filtered, vec!["cat", "mat"]);
+    }
+
+    #[test]
+    fn test_remove_stopwords_german() {
+        let tokens = vec!["der", "hund", "ist", "in", "dem", "haus"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+        let filtered = text_utils::remove_stopwords(tokens, "de");
+        assert_eq!(filtered, vec!["hund", "dem", "haus"]);
+    }
+
+    #[test]
+    fn test_remove_stopwords_german_variants() {
+        let tokens = vec!["hund".to_string()];
+        // "deu" and "german" should also use German stopwords
+        let filtered_deu = text_utils::remove_stopwords(tokens.clone(), "deu");
+        assert_eq!(filtered_deu, vec!["hund"]);
+        let filtered_german = text_utils::remove_stopwords(tokens, "german");
+        assert_eq!(filtered_german, vec!["hund"]);
+    }
+
+    #[test]
+    fn test_remove_stopwords_unknown_lang_defaults_to_english() {
+        let tokens = vec!["the", "cat"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+        let filtered = text_utils::remove_stopwords(tokens, "fr");
+        assert_eq!(filtered, vec!["cat"]);
+    }
+
+    #[test]
+    fn test_remove_stopwords_all_stopwords() {
+        let tokens = vec!["the", "and", "is", "in"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+        let filtered = text_utils::remove_stopwords(tokens, "en");
+        assert!(filtered.is_empty());
+    }
+
+    // === levenshtein_distance Tests ===
+
+    #[test]
+    fn test_levenshtein_identical() {
+        assert_eq!(text_utils::levenshtein_distance("hello", "hello"), 0);
+    }
+
+    #[test]
+    fn test_levenshtein_empty_both() {
+        assert_eq!(text_utils::levenshtein_distance("", ""), 0);
+    }
+
+    #[test]
+    fn test_levenshtein_one_empty() {
+        assert_eq!(text_utils::levenshtein_distance("", "abc"), 3);
+        assert_eq!(text_utils::levenshtein_distance("abc", ""), 3);
+    }
+
+    #[test]
+    fn test_levenshtein_symmetric() {
+        let d1 = text_utils::levenshtein_distance("abc", "xyz");
+        let d2 = text_utils::levenshtein_distance("xyz", "abc");
+        assert_eq!(d1, d2);
+    }
+
+    #[test]
+    fn test_levenshtein_single_insertion() {
+        assert_eq!(text_utils::levenshtein_distance("cat", "cats"), 1);
+    }
+
+    #[test]
+    fn test_levenshtein_single_deletion() {
+        assert_eq!(text_utils::levenshtein_distance("cats", "cat"), 1);
+    }
+
+    #[test]
+    fn test_levenshtein_unicode() {
+        assert_eq!(text_utils::levenshtein_distance("über", "uber"), 1);
+    }
+
+    // === jaccard_similarity Tests ===
+
+    #[test]
+    fn test_jaccard_identical() {
+        assert_eq!(text_utils::jaccard_similarity("hello world", "hello world"), 1.0);
+    }
+
+    #[test]
+    fn test_jaccard_disjoint() {
+        assert_eq!(text_utils::jaccard_similarity("hello", "world"), 0.0);
+    }
+
+    #[test]
+    fn test_jaccard_partial() {
+        let sim = text_utils::jaccard_similarity("hello world", "hello");
+        assert!(sim > 0.0 && sim < 1.0);
+        // intersection = {hello}, union = {hello, world} => 1/2
+        assert!((sim - 0.5).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_jaccard_empty() {
+        assert_eq!(text_utils::jaccard_similarity("", ""), 0.0);
+    }
+
+    #[test]
+    fn test_jaccard_order_independent() {
+        let s1 = text_utils::jaccard_similarity("hello world", "world hello");
+        let s2 = text_utils::jaccard_similarity("world hello", "hello world");
+        assert_eq!(s1, s2);
+        assert_eq!(s1, 1.0);
+    }
+
+    // === create_ngrams Tests ===
+
+    #[test]
+    fn test_ngrams_basic() {
+        let ngrams = text_utils::create_ngrams("hello", 2);
+        assert_eq!(ngrams, vec!["he", "el", "ll", "lo"]);
+    }
+
+    #[test]
+    fn test_ngrams_n_greater_than_len() {
+        let ngrams = text_utils::create_ngrams("hi", 5);
+        assert_eq!(ngrams, vec!["hi"]);
+    }
+
+    #[test]
+    fn test_ngrams_n_zero() {
+        assert!(text_utils::create_ngrams("hello", 0).is_empty());
+    }
+
+    #[test]
+    fn test_ngrams_empty_text() {
+        assert!(text_utils::create_ngrams("", 2).is_empty());
+    }
+
+    #[test]
+    fn test_ngrams_unicode() {
+        let ngrams = text_utils::create_ngrams("über", 2);
+        assert_eq!(ngrams, vec!["üb", "be", "er"]);
+    }
+
+    #[test]
+    fn test_ngrams_n_equals_len() {
+        let ngrams = text_utils::create_ngrams("abc", 3);
+        assert_eq!(ngrams, vec!["abc"]);
+    }
+
+    // === normalize_text Tests ===
+
+    #[test]
+    fn test_normalize_text_lowercase() {
+        assert_eq!(text_utils::normalize_text("HELLO"), "hello");
+    }
+
+    #[test]
+    fn test_normalize_text_trim() {
+        assert_eq!(text_utils::normalize_text("  hello  "), "hello");
+    }
+
+    #[test]
+    fn test_normalize_text_nfkd() {
+        // NFKD decomposes characters, e.g. "ﬁ" (U+FB01) -> "fi"
+        let normalized = text_utils::normalize_text("ﬁle");
+        assert_eq!(normalized, "file");
     }
 }

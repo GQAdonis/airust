@@ -14,12 +14,18 @@ fn print_help() {
     println!("  pdf2kb --help                  - Shows this help");
     println!();
     println!("Options:");
-    println!("  --min-chunk <number>   - Minimum chunk size (default: 50)");
-    println!("  --max-chunk <number>   - Maximum chunk size (default: 1000)");
-    println!("  --overlap <number>     - Overlap between chunks (default: 200)");
-    println!("  --weight <number>      - Weight for training examples (default: 1.0)");
-    println!("  --no-metadata          - No metadata in training examples");
-    println!("  --no-sentence-split    - Don't split text at sentence boundaries");
+    println!("  --min-chunk <number>     - Minimum chunk size (default: 50)");
+    println!("  --max-chunk <number>     - Maximum chunk size (default: 1000)");
+    println!("  --overlap <number>       - Overlap between chunks (default: 200)");
+    println!("  --weight <number>        - Weight for training examples (default: 1.0)");
+    println!("  --no-metadata            - No metadata in training examples");
+    println!("  --no-sentence-split      - Don't split text at sentence boundaries");
+    println!("  --paragraph-split        - Split primarily at paragraph boundaries (default)");
+    println!("  --no-paragraph-split     - Don't split at paragraph boundaries");
+    println!("  --no-clean               - Disable text cleaning pipeline");
+    println!("  --no-dehyphenate         - Disable dehyphenation");
+    println!("  --keep-page-numbers      - Keep page number lines");
+    println!("  --verbose                - Show extracted text before/after cleaning");
 }
 
 fn main() {
@@ -34,6 +40,7 @@ fn main() {
     let mut config = PdfLoaderConfig::default();
     let mut pdf_path = String::new();
     let mut output_path = String::new();
+    let mut verbose = false;
 
     // Parse arguments
     let mut i = 1;
@@ -103,6 +110,30 @@ fn main() {
                 config.split_by_sentence = false;
                 i += 1;
             }
+            "--paragraph-split" => {
+                config.split_by_paragraph = true;
+                i += 1;
+            }
+            "--no-paragraph-split" => {
+                config.split_by_paragraph = false;
+                i += 1;
+            }
+            "--no-clean" => {
+                config.clean_text = false;
+                i += 1;
+            }
+            "--no-dehyphenate" => {
+                config.dehyphenate = false;
+                i += 1;
+            }
+            "--keep-page-numbers" => {
+                config.remove_page_numbers = false;
+                i += 1;
+            }
+            "--verbose" => {
+                verbose = true;
+                i += 1;
+            }
             _ => {
                 // If it's not an option, it should be a file path
                 if pdf_path.is_empty() {
@@ -169,30 +200,97 @@ fn main() {
             "No"
         }
     );
+    println!(
+        "  Paragraph split: {}",
+        if config.split_by_paragraph {
+            "Yes"
+        } else {
+            "No"
+        }
+    );
+    println!(
+        "  Text cleaning: {}",
+        if config.clean_text { "Yes" } else { "No" }
+    );
+    println!(
+        "  Dehyphenation: {}",
+        if config.dehyphenate { "Yes" } else { "No" }
+    );
+    println!(
+        "  Remove page numbers: {}",
+        if config.remove_page_numbers {
+            "Yes"
+        } else {
+            "No"
+        }
+    );
+
+    // Verbose: show raw text before cleaning
+    if verbose {
+        println!("\n--- Extracting raw text ---");
+        let loader_raw = PdfLoader::with_config(PdfLoaderConfig {
+            clean_text: false,
+            ..PdfLoaderConfig::default()
+        });
+        match loader_raw.pdf_to_training_examples(&pdf_path) {
+            Ok(examples) => {
+                let raw_text: String = examples
+                    .iter()
+                    .map(|e| e.input.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n---\n");
+                let preview: String = raw_text.chars().take(2000).collect();
+                println!("[RAW] First 2000 chars:\n{}", preview);
+                if raw_text.chars().count() > 2000 {
+                    println!("... ({} total chars)", raw_text.chars().count());
+                }
+            }
+            Err(e) => {
+                eprintln!("Error extracting raw text: {}", e);
+            }
+        }
+        println!("--- End raw text ---\n");
+    }
 
     // Convert PDF to Knowledge Base
     let loader = PdfLoader::with_config(config);
     match loader.pdf_to_knowledge_base(&pdf_path) {
         Ok(kb) => {
+            let example_count = kb.get_examples().len();
             println!(
                 "PDF successfully converted. {} training examples extracted.",
-                kb.get_examples().len()
+                example_count
             );
+
+            // Verbose: show cleaned text
+            if verbose {
+                println!("\n--- Cleaned text ---");
+                for (i, ex) in kb.get_examples().iter().enumerate().take(5) {
+                    println!("[Chunk {}] {}", i, &ex.input[..ex.input.len().min(300)]);
+                    println!();
+                }
+                if example_count > 5 {
+                    println!("... ({} more chunks)", example_count - 5);
+                }
+                println!("--- End cleaned text ---\n");
+            }
 
             // Save Knowledge Base
             match loader.save_knowledge_base(&kb, &output_path) {
                 Ok(_) => {
-                    println!("✓ Knowledge Base successfully saved: {}", output_path);
-                    println!("\nTest the base with: cargo run --bin airust -- query tfidf \"Question about the content\"");
+                    println!("Knowledge Base successfully saved: {}", output_path);
+                    println!(
+                        "\nTest the base with: cargo run --bin airust -- query tfidf \"Question about the content\""
+                    );
                 }
                 Err(e) => {
-                    eprintln!("❌ Error saving the Knowledge Base: {}", e);
+                    eprintln!("Error saving the Knowledge Base: {}", e);
                     process::exit(1);
                 }
             }
         }
         Err(e) => {
-            eprintln!("❌ Error converting the PDF: {}", e);
+            eprintln!("Error converting the PDF: {}", e);
             process::exit(1);
         }
     }

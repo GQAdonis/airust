@@ -1,97 +1,233 @@
-// src/bin/airust.rs - Corrected unified CLI tool
+// src/bin/airust.rs – Docker-style CLI
 use airust::agent::{Agent, ContextualAgent, ResponseFormat, TrainableAgent, TrainingExample};
 use airust::context_agent::ContextAgent;
 use airust::knowledge::KnowledgeBase;
 use airust::match_agent::MatchAgent;
 use airust::tfidf_agent::TfidfAgent;
 use std::env;
+use std::fs;
 use std::io::{self, Write};
 use std::path::PathBuf;
+use std::process;
 
-enum Command {
-    Query(String),
-    Interactive,
-    Knowledge,
-    Help,
-}
-
-enum AgentType {
-    Simple,
-    Fuzzy,
-    TFIDF,
-    Context,
-}
+const DEFAULT_PORT: u16 = 7070;
+const PID_FILE: &str = "/tmp/airust.pid";
 
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    if args.len() < 2 {
-        print_help();
-        return;
-    }
+    let mut port: u16 = DEFAULT_PORT;
+    let mut detached = false;
+    let mut is_daemon = false;
+    let mut show_landing = false;
+    let mut command: Option<String> = None;
+    let mut cli_args_start = args.len();
+    let mut i = 1;
 
-    let command = match args[1].as_str() {
-        "query" => {
-            if args.len() < 4 {
-                eprintln!("Error: 'query' requires agent type and question");
-                print_help();
-                return;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--_daemon" => is_daemon = true,
+            "-d" => detached = true,
+            "--landingpage" => show_landing = true,
+            "--port" => {
+                if i + 1 < args.len() {
+                    port = args[i + 1].parse().unwrap_or_else(|_| {
+                        eprintln!("Invalid port: {}", args[i + 1]);
+                        process::exit(1);
+                    });
+                    i += 1;
+                }
             }
-            let _agent_type = match args[2].as_str() {
-                "simple" => AgentType::Simple,
-                "fuzzy" => AgentType::Fuzzy,
-                "tfidf" => AgentType::TFIDF,
-                "context" => AgentType::Context,
-                _ => {
-                    eprintln!("Unknown agent type: {}", args[2]);
+            "stop" | "cli" | "help" if command.is_none() => {
+                command = Some(args[i].clone());
+                cli_args_start = i + 1;
+            }
+            "-h" | "--help" => {
+                command = Some("help".to_string());
+            }
+            _ => {
+                if command.is_none() {
+                    eprintln!("Unknown command: {}", args[i]);
                     print_help();
                     return;
                 }
-            };
-
-            let question = args[3..].join(" ");
-            Command::Query(question)
+            }
         }
-        "interactive" => Command::Interactive,
-        "knowledge" => Command::Knowledge,
-        "help" => Command::Help,
+        i += 1;
+    }
+
+    // Internal daemon mode (used by -d to respawn)
+    if is_daemon {
+        #[cfg(feature = "web")]
+        run_web_server(port, show_landing);
+        return;
+    }
+
+    match command.as_deref() {
+        Some("stop") => stop_server(),
+        Some("cli") => handle_cli(&args[cli_args_start..]),
+        Some("help") => print_help(),
+        None => {
+            #[cfg(feature = "web")]
+            {
+                if detached {
+                    start_detached(port, show_landing);
+                } else {
+                    run_web_server(port, show_landing);
+                }
+            }
+            #[cfg(not(feature = "web"))]
+            {
+                eprintln!("Web feature not enabled. Compile with: --features web");
+                process::exit(1);
+            }
+        }
+        _ => print_help(),
+    }
+}
+
+// ── Web Server ────────────────────────────────────────────────────────────────
+
+#[cfg(feature = "web")]
+fn run_web_server(port: u16, show_landing: bool) {
+    if is_server_running() {
+        eprintln!("AIRust is already running. Use 'airust stop' first.");
+        process::exit(1);
+    }
+
+    let pid = process::id();
+    fs::write(PID_FILE, pid.to_string()).ok();
+
+    tokio::runtime::Runtime::new()
+        .expect("Failed to create Tokio runtime")
+        .block_on(airust::web::start_server(port, show_landing));
+
+    fs::remove_file(PID_FILE).ok();
+}
+
+#[cfg(feature = "web")]
+fn start_detached(port: u16, show_landing: bool) {
+    if is_server_running() {
+        eprintln!("AIRust is already running. Use 'airust stop' first.");
+        process::exit(1);
+    }
+
+    let exe = env::current_exe().expect("Failed to get executable path");
+
+    let log_file = fs::File::create("/tmp/airust.log").expect("Failed to create log file");
+    let err_file = log_file.try_clone().expect("Failed to clone log file");
+
+    let mut daemon_args = vec!["--_daemon".to_string(), "--port".to_string(), port.to_string()];
+    if show_landing {
+        daemon_args.push("--landingpage".to_string());
+    }
+
+    let mut child = process::Command::new(exe)
+        .args(&daemon_args)
+        .stdout(log_file)
+        .stderr(err_file)
+        .stdin(process::Stdio::null())
+        .spawn()
+        .expect("Failed to start server");
+
+    let pid = child.id();
+    // Detach child so it doesn't become a zombie
+    std::thread::spawn(move || { let _ = child.wait(); });
+    fs::write(PID_FILE, pid.to_string()).ok();
+
+    println!("AIRust running at http://localhost:{}", port);
+    println!("  PID:  {}", pid);
+    println!("  Logs: /tmp/airust.log");
+    println!("  Stop: airust stop");
+}
+
+fn stop_server() {
+    match fs::read_to_string(PID_FILE) {
+        Ok(pid_str) => {
+            let pid = pid_str.trim().to_string();
+            match process::Command::new("kill").arg(&pid).status() {
+                Ok(s) if s.success() => {
+                    fs::remove_file(PID_FILE).ok();
+                    println!("AIRust stopped (PID: {})", pid);
+                }
+                _ => {
+                    fs::remove_file(PID_FILE).ok();
+                    eprintln!("Process {} not found (cleaned up)", pid);
+                }
+            }
+        }
+        Err(_) => eprintln!("No running AIRust server found."),
+    }
+}
+
+fn is_server_running() -> bool {
+    if let Ok(pid_str) = fs::read_to_string(PID_FILE) {
+        let pid = pid_str.trim();
+        // Don't consider our own process as "already running"
+        if pid == process::id().to_string() {
+            return false;
+        }
+        if let Ok(status) = process::Command::new("kill").args(["-0", pid]).stderr(process::Stdio::null()).status() {
+            if status.success() {
+                return true;
+            }
+        }
+        fs::remove_file(PID_FILE).ok();
+    }
+    false
+}
+
+// ── CLI Mode ──────────────────────────────────────────────────────────────────
+
+fn handle_cli(args: &[String]) {
+    if args.is_empty() {
+        run_interactive_mode();
+        return;
+    }
+
+    match args[0].as_str() {
+        "query" => {
+            if args.len() < 3 {
+                eprintln!("Usage: airust cli query <agent> <question>");
+                eprintln!("Agents: simple, fuzzy, tfidf, context");
+                return;
+            }
+            handle_query(&args[1], &args[2..].join(" "));
+        }
+        "interactive" => run_interactive_mode(),
+        "knowledge" => run_knowledge_management(),
         _ => {
-            eprintln!("Unknown command: {}", args[1]);
-            print_help();
-            return;
+            eprintln!("Unknown CLI command: {}", args[0]);
+            eprintln!("Available: query, interactive, knowledge");
         }
-    };
-
-    match command {
-        Command::Query(question) => handle_query(&args[2], &question),
-        Command::Interactive => run_interactive_mode(),
-        Command::Knowledge => run_knowledge_management(),
-        Command::Help => print_help(),
     }
 }
 
 fn print_help() {
-    println!("airust - Modular AI Library in Rust");
+    println!("airust - Modular AI Engine in Rust");
     println!();
     println!("Usage:");
-    println!("  airust query <agent> <question>   - Ask a question to an agent");
-    println!("  airust interactive             - Start interactive mode");
-    println!("  airust knowledge               - Knowledge base management");
-    println!("  airust help                    - Show this help");
+    println!("  airust                 Start web server (port {})", DEFAULT_PORT);
+    println!("  airust --port <PORT>   Start on specific port");
+    println!("  airust -d              Start in background (detached)");
+    println!("  airust --landingpage   Show landing page + dashboard");
+    println!("  airust stop            Stop background server");
+    println!("  airust cli             Interactive CLI mode");
+    println!("  airust help            Show this help");
     println!();
-    println!("Available agents:");
-    println!("  simple   - Exact match");
-    println!("  fuzzy    - Approximate match (Levenshtein)");
-    println!("  tfidf    - BM25 algorithm for better matching");
-    println!("  context  - Considers previous conversation");
+    println!("CLI subcommands:");
+    println!("  airust cli query <agent> <question>");
+    println!("  airust cli knowledge");
+    println!();
+    println!("Agents: simple, fuzzy, tfidf, context");
 }
 
+// ── Query & Interactive ───────────────────────────────────────────────────────
+
 fn handle_query(agent_type: &str, question: &str) {
-    // Loads knowledge base
     let kb = KnowledgeBase::from_embedded();
     let examples = kb.get_examples();
 
-    // Creates matching agent
     let answer = match agent_type {
         "simple" => {
             let mut agent = MatchAgent::new_exact();
@@ -109,7 +245,6 @@ fn handle_query(agent_type: &str, question: &str) {
             agent.predict(question)
         }
         "context" => {
-            // In non-interactive mode there is no context
             let mut base_agent = TfidfAgent::new();
             base_agent.train(examples);
             let agent = ContextAgent::new(base_agent, 3);
@@ -129,89 +264,51 @@ fn run_interactive_mode() {
     println!("3. TFIDF (TfidfAgent)");
     println!("4. Context (ContextAgent)");
     print!("> ");
-    io::stdout().flush().unwrap();
+    let _ = io::stdout().flush();
 
     let mut input = String::new();
-    io::stdin().read_line(&mut input).unwrap();
+    let _ = io::stdin().read_line(&mut input);
     let choice = input.trim();
 
-    // Loading knowledge base
     let kb = KnowledgeBase::from_embedded();
     let examples = kb.get_examples();
 
     match choice {
-        "1" => interactive_loop_simple(examples),
-        "2" => interactive_loop_fuzzy(examples),
-        "3" => interactive_loop_tfidf(examples),
+        "1" => {
+            let mut a = MatchAgent::new_exact();
+            a.train(examples);
+            interactive_loop(&a, "Exact Matching Agent");
+        }
+        "2" => {
+            let mut a = MatchAgent::new_fuzzy();
+            a.train(examples);
+            interactive_loop(&a, "Fuzzy Matching Agent");
+        }
+        "3" => {
+            let mut a = TfidfAgent::new();
+            a.train(examples);
+            interactive_loop(&a, "TFIDF Agent (BM25)");
+        }
         "4" => interactive_loop_context(examples),
         _ => println!("Invalid selection. Please restart the program."),
     }
 }
 
-fn interactive_loop_simple(examples: &[TrainingExample]) {
-    println!("=== Exact Matching Agent ===");
+fn interactive_loop(agent: &impl Agent, name: &str) {
+    println!("=== {} ===", name);
     println!("Enter questions or 'exit' to quit.");
-
-    let mut agent = MatchAgent::new_exact();
-    agent.train(examples);
 
     loop {
         print!("> ");
-        io::stdout().flush().unwrap();
+        let _ = io::stdout().flush();
 
         let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
-        let input = input.trim();
-
-        if input.to_lowercase() == "exit" {
+        if io::stdin().read_line(&mut input).is_err() {
             break;
         }
-
-        let answer = agent.predict(input);
-        println!("Answer: {}", String::from(answer.clone()));
-    }
-}
-
-fn interactive_loop_fuzzy(examples: &[TrainingExample]) {
-    println!("=== Fuzzy Matching Agent ===");
-    println!("Enter questions or 'exit' to quit.");
-
-    let mut agent = MatchAgent::new_fuzzy();
-    agent.train(examples);
-
-    loop {
-        print!("> ");
-        io::stdout().flush().unwrap();
-
-        let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
         let input = input.trim();
 
-        if input.to_lowercase() == "exit" {
-            break;
-        }
-
-        let answer = agent.predict(input);
-        println!("Answer: {}", String::from(answer));
-    }
-}
-
-fn interactive_loop_tfidf(examples: &[TrainingExample]) {
-    println!("=== TFIDF Agent (BM25) ===");
-    println!("Enter questions or 'exit' to quit.");
-
-    let mut agent = TfidfAgent::new();
-    agent.train(examples);
-
-    loop {
-        print!("> ");
-        io::stdout().flush().unwrap();
-
-        let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
-        let input = input.trim();
-
-        if input.to_lowercase() == "exit" {
+        if input.is_empty() || input.to_lowercase() == "exit" {
             break;
         }
 
@@ -223,30 +320,32 @@ fn interactive_loop_tfidf(examples: &[TrainingExample]) {
 fn interactive_loop_context(examples: &[TrainingExample]) {
     println!("=== Context Agent ===");
     println!("Enter questions or 'exit' to quit.");
-    println!("The agent uses context from previous questions.");
 
-    let mut base_agent = TfidfAgent::new();
-    base_agent.train(examples);
-    let mut agent = ContextAgent::new(base_agent, 3);
+    let mut base = TfidfAgent::new();
+    base.train(examples);
+    let mut agent = ContextAgent::new(base, 3);
 
     loop {
         print!("> ");
-        io::stdout().flush().unwrap();
+        let _ = io::stdout().flush();
 
         let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
+        if io::stdin().read_line(&mut input).is_err() {
+            break;
+        }
         let input = input.trim();
 
-        if input.to_lowercase() == "exit" {
+        if input.is_empty() || input.to_lowercase() == "exit" {
             break;
         }
 
         let answer = agent.predict(input);
-        let answer_str = String::from(answer.clone());
-        println!("Answer: {}", answer_str);
+        println!("Answer: {}", String::from(answer.clone()));
         agent.add_context(input.to_string(), answer);
     }
 }
+
+// ── Knowledge Management ──────────────────────────────────────────────────────
 
 fn run_knowledge_management() {
     println!("=== Knowledge Base Management ===");
@@ -254,16 +353,16 @@ fn run_knowledge_management() {
     println!("2. Load knowledge base");
     println!("3. Back");
     print!("> ");
-    io::stdout().flush().unwrap();
+    let _ = io::stdout().flush();
 
     let mut input = String::new();
-    io::stdin().read_line(&mut input).unwrap();
+    let _ = io::stdin().read_line(&mut input);
     let choice = input.trim();
 
     match choice {
         "1" => create_knowledge_base(),
         "2" => load_knowledge_base(),
-        _ => return,
+        _ => (),
     }
 }
 
@@ -276,10 +375,10 @@ fn create_knowledge_base() {
     loop {
         println!("\nNew example:");
         print!("Question: ");
-        io::stdout().flush().unwrap();
+        let _ = io::stdout().flush();
 
         let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
+        let _ = io::stdin().read_line(&mut input);
         let input = input.trim();
 
         if input.is_empty() {
@@ -287,17 +386,17 @@ fn create_knowledge_base() {
         }
 
         print!("Answer: ");
-        io::stdout().flush().unwrap();
+        let _ = io::stdout().flush();
 
         let mut output = String::new();
-        io::stdin().read_line(&mut output).unwrap();
+        let _ = io::stdin().read_line(&mut output);
         let output = output.trim();
 
         print!("Weight (Default 1.0): ");
-        io::stdout().flush().unwrap();
+        let _ = io::stdout().flush();
 
         let mut weight_str = String::new();
-        io::stdin().read_line(&mut weight_str).unwrap();
+        let _ = io::stdin().read_line(&mut weight_str);
         let weight_str = weight_str.trim();
 
         let weight = if weight_str.is_empty() {
@@ -316,10 +415,10 @@ fn create_knowledge_base() {
 
     println!("\nEnter path to save:");
     print!("> ");
-    io::stdout().flush().unwrap();
+    let _ = io::stdout().flush();
 
     let mut path_str = String::new();
-    io::stdin().read_line(&mut path_str).unwrap();
+    let _ = io::stdin().read_line(&mut path_str);
     let path_str = path_str.trim();
 
     if path_str.is_empty() {
@@ -333,10 +432,10 @@ fn create_knowledge_base() {
             println!("Knowledge base saved to {:?}", path);
             println!("Would you like to test the knowledge base? (y/n)");
             print!("> ");
-            io::stdout().flush().unwrap();
+            let _ = io::stdout().flush();
 
             let mut test = String::new();
-            io::stdin().read_line(&mut test).unwrap();
+            let _ = io::stdin().read_line(&mut test);
             let test = test.trim();
 
             if test.to_lowercase() == "y" {
@@ -350,10 +449,10 @@ fn create_knowledge_base() {
 fn load_knowledge_base() {
     println!("Enter path to knowledge base:");
     print!("> ");
-    io::stdout().flush().unwrap();
+    let _ = io::stdout().flush();
 
     let mut path_str = String::new();
-    io::stdin().read_line(&mut path_str).unwrap();
+    let _ = io::stdin().read_line(&mut path_str);
     let path_str = path_str.trim();
 
     if path_str.is_empty() {
@@ -373,16 +472,16 @@ fn load_knowledge_base() {
             println!("2. Add examples");
             println!("3. Back");
             print!("> ");
-            io::stdout().flush().unwrap();
+            let _ = io::stdout().flush();
 
             let mut choice = String::new();
-            io::stdin().read_line(&mut choice).unwrap();
+            let _ = io::stdin().read_line(&mut choice);
             let choice = choice.trim();
 
             match choice {
                 "1" => test_knowledge_base(&kb),
                 "2" => add_examples_to_kb(kb),
-                _ => return,
+                _ => (),
             }
         }
         Err(e) => println!("Error loading: {}", e),
@@ -396,10 +495,10 @@ fn test_knowledge_base(kb: &KnowledgeBase) {
     println!("2. Fuzzy (FuzzyAgent)");
     println!("3. TFIDF (TfidfAgent)");
     print!("> ");
-    io::stdout().flush().unwrap();
+    let _ = io::stdout().flush();
 
     let mut choice = String::new();
-    io::stdin().read_line(&mut choice).unwrap();
+    let _ = io::stdin().read_line(&mut choice);
     let choice = choice.trim();
 
     let examples = kb.get_examples();
@@ -429,10 +528,10 @@ fn test_loop(agent: &impl Agent) {
 
     loop {
         print!("> ");
-        io::stdout().flush().unwrap();
+        let _ = io::stdout().flush();
 
         let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
+        let _ = io::stdin().read_line(&mut input);
         let input = input.trim();
 
         if input.to_lowercase() == "exit" {
@@ -451,10 +550,10 @@ fn add_examples_to_kb(mut kb: KnowledgeBase) {
     loop {
         println!("\nNew example:");
         print!("Question: ");
-        io::stdout().flush().unwrap();
+        let _ = io::stdout().flush();
 
         let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
+        let _ = io::stdin().read_line(&mut input);
         let input = input.trim();
 
         if input.is_empty() {
@@ -462,17 +561,17 @@ fn add_examples_to_kb(mut kb: KnowledgeBase) {
         }
 
         print!("Answer: ");
-        io::stdout().flush().unwrap();
+        let _ = io::stdout().flush();
 
         let mut output = String::new();
-        io::stdin().read_line(&mut output).unwrap();
+        let _ = io::stdin().read_line(&mut output);
         let output = output.trim();
 
         print!("Weight (Default 1.0): ");
-        io::stdout().flush().unwrap();
+        let _ = io::stdout().flush();
 
         let mut weight_str = String::new();
-        io::stdin().read_line(&mut weight_str).unwrap();
+        let _ = io::stdin().read_line(&mut weight_str);
         let weight_str = weight_str.trim();
 
         let weight = if weight_str.is_empty() {
@@ -491,10 +590,10 @@ fn add_examples_to_kb(mut kb: KnowledgeBase) {
 
     println!("\nWould you like to save the changes? (y/n)");
     print!("> ");
-    io::stdout().flush().unwrap();
+    let _ = io::stdout().flush();
 
     let mut save = String::new();
-    io::stdin().read_line(&mut save).unwrap();
+    let _ = io::stdin().read_line(&mut save);
     let save = save.trim();
 
     if save.to_lowercase() == "y" {
